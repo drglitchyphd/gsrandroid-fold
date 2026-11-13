@@ -97,12 +97,17 @@ bool HostWindow::set_surface_size(int base_w, int base_h) {
     if (base_w < 1 || base_h < 1) return false;
     g.base_w = base_w;
     g.base_h = base_h;
+    gsr_host_set_logical_size(base_w, base_h);
     return true;
 }
 
+// The runtime asks this only to size an aspect-following view (runtime.cpp sync_fixed_view_mode). In the Fit
+// screen view the answer is the view itself, worked out from the picture area and the Zoom by the host
+// (gsr_host_fit_view), and view_aspect() says to take it as it is (ViewAspectHostExact).
 bool HostWindow::drawable_size(int* width, int* height) const {
     int w = 0, h = 0;
     gsr_host_surface_size(&w, &h);
+    if (w > 0 && h > 0 && clamped_view_mode() == 2) gsr_host_fit_view(w, h, &w, &h);
     if (width) *width = w;
     if (height) *height = h;
     return w > 0 && h > 0;
@@ -253,7 +258,7 @@ void* HostWindow::take_kept_window() { return nullptr; }
 // The side menu's view setting picks the mode; the picture is always the mode's own size (Original
 // aspect), letterboxed by the host, as before.
 void HostWindow::set_aspect_view_available(bool) {}
-int HostWindow::view_aspect() const { return ViewAspectOriginal; }
+int HostWindow::view_aspect() const { return clamped_view_mode() == 2 ? ViewAspectHostExact : ViewAspectOriginal; }
 void HostWindow::resize_view_window() {}
 
 void HostWindow::push_audio_samples(const int16_t* samples, std::size_t count) {

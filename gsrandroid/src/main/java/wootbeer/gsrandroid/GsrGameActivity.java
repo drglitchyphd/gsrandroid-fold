@@ -25,6 +25,27 @@ public class GsrGameActivity extends DescoreGameActivity {
 	private GsrMenu menu;
 	private GsrBuildOverlay overlay;
 	private GsrSession session;
+	private final Handler handler = new Handler(Looper.getMainLooper());
+	/** "Paused, tap to resume" after folding or unfolding; null while not shown. */
+	private android.view.View pauseOverlay;
+	/** Paused because the window lost focus (the notification shade), resumed when it comes back. */
+	private boolean focusPaused;
+	private final boolean[] screenChanged = new boolean[1];
+	private final Runnable applyProfile = new Runnable() {
+		@Override public void run() {
+			handler.removeCallbacks(this);
+			// The native settings load when the game starts; until then try again shortly.
+			if (!GsrProfile.apply(GsrGameActivity.this, screenChanged)) {
+				handler.postDelayed(this, 250);
+				return;
+			}
+			if (screenChanged[0] && engineStarted()
+					&& GsrDisplay.flag(GsrGameActivity.this, GsrDisplay.FLAG_PAUSE_ON_FOLD, true)) {
+				showPauseOverlay();
+			}
+			if (menu != null) menu.screenChanged();
+		}
+	};
 	private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
 		@Override public void onDisplayAdded(int id) {}
 		@Override public void onDisplayRemoved(int id) {}
@@ -39,6 +60,7 @@ public class GsrGameActivity extends DescoreGameActivity {
 		GsrDisplay.publish(this);
 		GsrDisplay.apply(this);
 		GsrDisplay.publishTopInset(this);
+		applyProfile.run();
 	}
 
 	@Override
@@ -105,6 +127,83 @@ public class GsrGameActivity extends DescoreGameActivity {
 	public void onConfigurationChanged(android.content.res.Configuration c) {
 		super.onConfigurationChanged(c);
 		GsrDisplay.publishTopInset(this);  // the cutout's inset changes when the screen turns
+		// Folding, unfolding or turning: this screen's own view and touch settings (GsrProfile).
+		applyProfile.run();
+	}
+
+	@Override
+	public void onWindowFocusChanged(boolean hasFocus) {
+		super.onWindowFocusChanged(hasFocus);
+		if (!hasFocus) {
+			// Fingers on the screen when the shade came down never send their lift: let go of everything.
+			try {
+				GsrNative.releaseAll();
+			} catch (Throwable ignored) {
+				// native library not loaded yet
+			}
+			if (engineStarted() && GsrDisplay.flag(this, GsrDisplay.FLAG_PAUSE_ON_FOCUS, true)) {
+				focusPaused = true;
+				GsrNative.setUserPause(true);
+			}
+		} else if (focusPaused) {
+			focusPaused = false;
+			if (pauseOverlay == null) GsrNative.setUserPause(false);
+		}
+	}
+
+	/** Folding or unfolding paused the game: a dimmed screen with a resume button; any tap, A or Start resumes. */
+	private void showPauseOverlay() {
+		GsrNative.setUserPause(true);
+		if (pauseOverlay != null) return;
+		wootbeer.descore.DescoreTheme t = wootbeer.descore.DescoreTheme.get(this);
+		android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+		root.setBackgroundColor(t.scrim);
+		root.setClickable(true);
+		root.setOnClickListener(new android.view.View.OnClickListener() {
+			@Override public void onClick(android.view.View v) { hidePauseOverlay(); }
+		});
+		android.widget.TextView pill = new android.widget.TextView(this);
+		pill.setText("\u25B6  Paused \u00B7 tap to resume");
+		pill.setTextColor(t.onPrimaryContainer);
+		pill.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
+		pill.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+		pill.setBackground(t.pressable(t.primaryContainer, 28));
+		pill.setPadding(t.dp(28), t.dp(16), t.dp(28), t.dp(16));
+		pill.setClickable(true);
+		pill.setOnClickListener(new android.view.View.OnClickListener() {
+			@Override public void onClick(android.view.View v) { hidePauseOverlay(); }
+		});
+		root.addView(pill, new android.widget.FrameLayout.LayoutParams(
+				android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+				android.view.Gravity.CENTER));
+		addContentView(root, new android.view.ViewGroup.LayoutParams(
+				android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+		pauseOverlay = root;
+	}
+
+	private void hidePauseOverlay() {
+		if (pauseOverlay != null) {
+			((android.view.ViewGroup) pauseOverlay.getParent()).removeView(pauseOverlay);
+			pauseOverlay = null;
+		}
+		if (!focusPaused) GsrNative.setUserPause(false);
+		android.view.View game = findViewById(android.R.id.content);
+		if (game instanceof android.view.ViewGroup && ((android.view.ViewGroup) game).getChildCount() > 0)
+			((android.view.ViewGroup) game).getChildAt(0).requestFocus();
+	}
+
+	@Override
+	public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+		if (pauseOverlay != null) {
+			int k = e.getKeyCode();
+			if (k == android.view.KeyEvent.KEYCODE_BUTTON_A || k == android.view.KeyEvent.KEYCODE_BUTTON_START
+					|| k == android.view.KeyEvent.KEYCODE_ENTER || k == android.view.KeyEvent.KEYCODE_DPAD_CENTER
+					|| k == android.view.KeyEvent.KEYCODE_SPACE) {
+				if (e.getAction() == android.view.KeyEvent.ACTION_UP) hidePauseOverlay();
+				return true;  // the press that resumes does not also reach the game
+			}
+		}
+		return super.dispatchKeyEvent(e);
 	}
 
 	@Override
@@ -116,6 +215,7 @@ public class GsrGameActivity extends DescoreGameActivity {
 
 	@Override
 	protected void onDestroy() {
+		handler.removeCallbacks(applyProfile);
 		if (overlay != null) overlay.stop();
 		if (session != null) session.stop();
 		super.onDestroy();

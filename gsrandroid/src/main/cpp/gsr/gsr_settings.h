@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 typedef enum {
-	GSR_S_VIEW_MODE,     /* 0 native 240x160, 1 expanded view 360x240 */
+	GSR_S_VIEW_MODE,     /* 0 native 240x160, 1 expanded view 360x240, 2 fit screen (the view takes the screen's shape, up to 480x320) */
 	GSR_S_SCALE_MODE,    /* 0 fit (exact aspect), 1 integer, 2 stretch, 3 zoom to fill (crops) */
 	GSR_S_FILTER,        /* 0 sharp pixels, 1 smooth */
 	GSR_S_SCREEN,        /* 0 raw, 1 unlit, 2 frontlit, 3 backlit, 4 classic, 5..10 colour profiles (runtime::ScreenKind) */
@@ -38,6 +38,8 @@ typedef enum {
 	GSR_S_CHEAT_COIN,    /* cheats: coins multiplier step, same steps */
 	GSR_S_CHEAT_DROP,    /* cheats: item drop chance step 0..5 (0x .. 10x), 2 = normal */
 	GSR_S_PORTRAIT_COMPACT, /* portrait touch controls: 0 spread over the space below the picture, 1 compact right under it, 2 compact at the bottom */
+	GSR_S_VIEW_ZOOM,     /* fit screen view: 0 shows the most of the world (up to 480x320), 10 the closest (the native 240x160 just fills one side) */
+	GSR_S_ROOM_CLIP,     /* expanded views, The Lost Age: hide characters outside the current room. 0 off, 1 the rooms upstream checked, 2 every room */
 	GSR_S_COUNT
 } GsrSetting;
 
@@ -47,6 +49,10 @@ int gsr_settings_get(GsrSetting id);
 /* Clamps to the setting's range, saves the file, bumps the generation. */
 void gsr_settings_set(GsrSetting id, int value);
 unsigned gsr_settings_generation(void);
+/* 1 once gsr_settings_init has loaded the saved file: values set before that are replaced by the file's. */
+int gsr_settings_ready(void);
+/* Cheats are kept for this play session only: never saved or loaded. */
+#define GSR_SETTING_IS_CHEAT(i) ((i) >= GSR_S_CHEAT_HP && (i) <= GSR_S_CHEAT_DROP)
 
 #ifdef __cplusplus
 }

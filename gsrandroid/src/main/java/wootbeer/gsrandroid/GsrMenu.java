@@ -34,7 +34,9 @@ import android.widget.Toast;
 final class GsrMenu {
 	private static final int TEXT = 0xFFE8EEF4, DIM = 0xFF9AA8B8, ACCENT = 0xFF3D7CB8, PANEL = 0xE8101820;
 
-	private static final String[] VIEW = { "Native 240x160", "Expanded 360x240" };
+	private static final String[] VIEW = { "Native 240x160", "Expanded 360x240", "Fit screen" };
+	private static final String[] ZOOM = { "Farthest", "1", "2", "3", "4", "5", "6", "7", "8", "9", "Closest" };
+	private static final String[] ROOM_CLIP = { "Off", "Checked rooms", "Every room" };
 	private static final String[] SCALE = { "Fit", "Whole pixels", "Stretch", "Zoom to fill" };
 	private static final String[] FLICKER = { "Off", "Light", "Medium", "Strong" };
 	private static final String[] FILTER = { "Sharp", "Smooth" };
@@ -161,6 +163,15 @@ final class GsrMenu {
 		showMain();
 	}
 
+	/** The screen folded, unfolded or turned while the menu may be open: lay it out again for the new shape. */
+	void screenChanged() {
+		if (!open) return;
+		close();
+		activity.getWindow().getDecorView().postDelayed(new Runnable() {
+			@Override public void run() { show(); }
+		}, 300);
+	}
+
 	private void close() {
 		if (dialog != null) dialog.dismiss();
 	}
@@ -278,20 +289,33 @@ final class GsrMenu {
 		return r;
 	}
 
-	private static final String[] ORIENTATION = { "Landscape", "Portrait" };
+	private static final String[] ORIENTATION = { "Auto", "Landscape", "Portrait" };
 
-	/** Landscape (the default) or Portrait with the touch controls below the picture. The menu reopens upright. */
+	/** Auto (turn with the device), Landscape or Portrait. The menu reopens laid out for the new shape. */
 	private Row orientation() {
 		Row r = new Row("Orientation") {
-			@Override String value() { return ORIENTATION[GsrDisplay.portrait(activity) ? 1 : 0]; }
+			@Override String value() { return ORIENTATION[GsrDisplay.orientationMode(activity)]; }
 			@Override void step(int dir) {
-				GsrDisplay.setPortrait(activity, !GsrDisplay.portrait(activity));
+				GsrDisplay.setOrientationMode(activity, (GsrDisplay.orientationMode(activity) + dir + 3) % 3);
 				refresh();
 				// The menu was laid out for the old shape of the screen: lay it out again once the screen has turned.
 				close();
 				activity.getWindow().getDecorView().postDelayed(new Runnable() {
 					@Override public void run() { show(); }
 				}, 500);
+			}
+		};
+		r.refresh();
+		return r;
+	}
+
+	/** An Off/On switch kept on the Java side (GsrDisplay preferences). */
+	private Row javaSwitch(String label, final String key, final boolean fallback) {
+		Row r = new Row(label) {
+			@Override String value() { return OFF_ON[GsrDisplay.flag(activity, key, fallback) ? 1 : 0]; }
+			@Override void step(int dir) {
+				GsrDisplay.setFlag(activity, key, !GsrDisplay.flag(activity, key, fallback));
+				refresh();
 			}
 		};
 		r.refresh();
@@ -394,6 +418,7 @@ final class GsrMenu {
 
 		section("Display");
 		choice("Screen view", GsrNative.VIEW_MODE, VIEW);
+		choice("Zoom (Fit screen)", GsrNative.VIEW_ZOOM, ZOOM);
 		orientation();
 		renderer();
 		choice("Scaling", GsrNative.SCALE_MODE, SCALE);
@@ -407,6 +432,9 @@ final class GsrMenu {
 		highRes();
 		choice("High-res quality", GsrNative.NATIVE_SCALE, HIRES_VALUES, HIRES_LABELS);
 		choice("Show FPS", GsrNative.SHOW_FPS, OFF_ON);
+		choice("Hide characters outside the room", GsrNative.ROOM_CLIP, ROOM_CLIP);
+		javaSwitch("Pause when folding or unfolding", GsrDisplay.FLAG_PAUSE_ON_FOLD, true);
+		javaSwitch("Pause behind the notification shade", GsrDisplay.FLAG_PAUSE_ON_FOCUS, true);
 
 		section("Speed");
 		choice("Fast-forward speed", GsrNative.FF_MULT10, FF_VALUES, FF_LABELS);

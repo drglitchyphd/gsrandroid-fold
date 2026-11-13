@@ -61,10 +61,29 @@ JNIEXPORT jint JNICALL Java_wootbeer_gsrandroid_GsrNative_getSetting(JNIEnv *env
 	return gsr_settings_get((GsrSetting) id);
 }
 
-JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_setSetting(JNIEnv *env, jclass c, jint id, jint value)
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_setSettingRaw(JNIEnv *env, jclass c, jint id, jint value)
 {
 	(void) env; (void) c;
 	gsr_settings_set((GsrSetting) id, value);
+}
+
+JNIEXPORT jboolean JNICALL Java_wootbeer_gsrandroid_GsrNative_settingsReady(JNIEnv *env, jclass c)
+{
+	(void) env; (void) c;
+	return gsr_settings_ready() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_setUserPause(JNIEnv *env, jclass c, jboolean on)
+{
+	(void) env; (void) c;
+	gsr_host_set_user_pause(on ? 1 : 0);
+	if (on) gsr_controls_release_all();
+}
+
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_releaseAll(JNIEnv *env, jclass c)
+{
+	(void) env; (void) c;
+	gsr_controls_release_all();
 }
 
 JNIEXPORT jint JNICALL Java_wootbeer_gsrandroid_GsrNative_getBind(JNIEnv *env, jclass c, jint action, jint slot)

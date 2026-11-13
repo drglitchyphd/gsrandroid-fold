@@ -9,7 +9,7 @@
 typedef struct { const char *name; int def, lo, hi; } Spec;
 
 static const Spec k_spec[GSR_S_COUNT] = {
-	[GSR_S_VIEW_MODE]     = { "view_mode", 0, 0, 1 },
+	[GSR_S_VIEW_MODE]     = { "view_mode", 0, 0, 2 },
 	[GSR_S_SCALE_MODE]    = { "scale_mode", 0, 0, 3 },
 	[GSR_S_FILTER]        = { "filter", 0, 0, 1 },
 	[GSR_S_SCREEN]        = { "screen", 0, 0, 12 },  /* 11 (Custom) is not offered */
@@ -37,10 +37,13 @@ static const Spec k_spec[GSR_S_COUNT] = {
 	[GSR_S_CHEAT_COIN]    = { "cheat_coin", 2, 0, 8 },
 	[GSR_S_CHEAT_DROP]    = { "cheat_drop", 2, 0, 5 },
 	[GSR_S_PORTRAIT_COMPACT] = { "portrait_compact", 0, 0, 2 },
+	[GSR_S_VIEW_ZOOM]     = { "view_zoom", 5, 0, 10 },
+	[GSR_S_ROOM_CLIP]     = { "room_clip", 2, 0, 2 },
 };
 
 static atomic_int g_val[GSR_S_COUNT];
 static atomic_uint g_gen;
+static atomic_int g_ready;
 static char g_path[1024];
 static pthread_mutex_t g_save_mu = PTHREAD_MUTEX_INITIALIZER;
 
@@ -54,8 +57,8 @@ static void save(void) {
 	snprintf(tmp, sizeof tmp, "%s.tmp", g_path);
 	f = fopen(tmp, "w");
 	if (f) {
-		/* The cheats (the last entries) are for this play session only: never written, so they start off next time. */
-		for (int i = 0; i < GSR_S_CHEAT_HP; i++) fprintf(f, "%s=%d\n", k_spec[i].name, atomic_load(&g_val[i]));
+		/* The cheats are for this play session only: never written, so they start off next time. */
+		for (int i = 0; i < GSR_S_COUNT; i++) if (!GSR_SETTING_IS_CHEAT(i)) fprintf(f, "%s=%d\n", k_spec[i].name, atomic_load(&g_val[i]));
 		fclose(f);
 		rename(tmp, g_path);
 	}
@@ -73,14 +76,17 @@ void gsr_settings_init(const char *dir) {
 			char *eq = strchr(line, '=');
 			if (!eq) continue;
 			*eq = 0;
-			for (int i = 0; i < GSR_S_CHEAT_HP; i++)  /* cheats are not loaded: see save() */
-				if (strcmp(line, k_spec[i].name) == 0)
+			for (int i = 0; i < GSR_S_COUNT; i++)  /* cheats are not loaded: see save() */
+				if (!GSR_SETTING_IS_CHEAT(i) && strcmp(line, k_spec[i].name) == 0)
 					atomic_store(&g_val[i], clampi(atoi(eq + 1), k_spec[i].lo, k_spec[i].hi));
 		}
 		fclose(f);
 	}
+	atomic_store(&g_ready, 1);
 	atomic_fetch_add(&g_gen, 1);
 }
+
+int gsr_settings_ready(void) { return atomic_load(&g_ready); }
 
 int gsr_settings_get(GsrSetting id) {
 	return (id >= 0 && id < GSR_S_COUNT) ? atomic_load(&g_val[id]) : 0;

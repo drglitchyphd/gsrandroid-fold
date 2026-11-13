@@ -40,6 +40,15 @@ void gsr_host_render(int surface_w, int surface_h);
 void gsr_host_request_quit(void);
 /* The settings menu is open over the game: the guest is paused while it is. */
 void gsr_host_set_menu_open(int open);
+/* Paused from Java without the menu: the screen folding or unfolding, the notification shade pulled down. */
+void gsr_host_set_user_pause(int on);
+/* Engine side: the view size it renders (set_surface_size), for the screen filters. */
+void gsr_host_set_logical_size(int w, int h);
+/* Fit screen view (view mode 2): the view size for this surface, from the picture area's shape and the Zoom. */
+void gsr_host_fit_view(int surface_w, int surface_h, int *w, int *h);
+/* The Lost Age, expanded views: hide characters outside the current room (GSR_S_ROOM_CLIP: 0 off, 1 upstream's
+ * checked rooms, 2 every room). */
+int gsr_host_room_clip(void);
 /* Portrait screens (taller than wide): the picture sits at the top, full width, and the touch controls go
  * below it. The picture area's height in pixels, or 0 on a landscape screen. */
 int gsr_host_portrait_picture_h(int w, int h);

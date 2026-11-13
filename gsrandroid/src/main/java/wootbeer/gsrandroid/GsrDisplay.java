@@ -59,17 +59,34 @@ final class GsrDisplay {
 		});
 	}
 
-	// ---- Orientation: Landscape (the default) or Portrait, a fixed choice (no following the sensor) -------
+	// ---- Orientation: Auto (follow the device, the default), Landscape or Portrait ----------------------------------
 
-	private static final String PREFS = "gsr_display", KEY_PORTRAIT = "portrait";
+	private static final String PREFS = "gsr_display", KEY_ORIENTATION = "orientation";
+	static final int ORIENT_AUTO = 0, ORIENT_LANDSCAPE = 1, ORIENT_PORTRAIT = 2;
 
-	static boolean portrait(Activity a) {
-		return a.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).getBoolean(KEY_PORTRAIT, false);
+	/** Auto turns with the device (and the system's rotation lock), on either screen of a foldable. */
+	static int orientationMode(Activity a) {
+		return a.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).getInt(KEY_ORIENTATION, ORIENT_AUTO);
 	}
 
-	static void setPortrait(Activity a, boolean on) {
-		a.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).edit().putBoolean(KEY_PORTRAIT, on).apply();
+	static void setOrientationMode(Activity a, int mode) {
+		a.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).edit().putInt(KEY_ORIENTATION, mode).apply();
 		applyOrientation(a);
+	}
+
+	static final String FLAG_PAUSE_ON_FOLD = "pause_on_fold", FLAG_PAUSE_ON_FOCUS = "pause_on_focus";
+
+	static boolean flag(Activity a, String key, boolean fallback) {
+		return a.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).getBoolean(key, fallback);
+	}
+
+	static void setFlag(Activity a, String key, boolean on) {
+		a.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).edit().putBoolean(key, on).apply();
+	}
+
+	/** True while the screen is upright (taller than wide): the picture at the top, the controls below it. */
+	static boolean portrait(Activity a) {
+		return a.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT;
 	}
 
 	/** Portrait: tell the native side how far down a camera cutout reaches, so the picture starts below it. */
@@ -90,11 +107,14 @@ final class GsrDisplay {
 		}, 300);
 	}
 
-	/** Landscape either way up (as before), or upright portrait with the controls below the picture. */
+	/** Auto: any way up the device is held; otherwise landscape either way up, or upright portrait. */
 	static void applyOrientation(Activity a) {
-		a.setRequestedOrientation(portrait(a)
-				? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-				: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+		int mode = orientationMode(a);
+		a.setRequestedOrientation(mode == ORIENT_PORTRAIT
+				? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+				: mode == ORIENT_LANDSCAPE
+						? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+						: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
 	}
 
 	/** Tell the native side the refresh rate the display is running at right now. */

@@ -15,6 +15,9 @@ enum ViewAspect {
     ViewAspectMinimalSharpPixels,
 };
 inline constexpr int kViewAspectCount = 6;
+// Android port (not offered in the desktop menu, so outside kViewAspectCount): the host has already worked out
+// the view from the screen and the player's zoom and reports it as the drawable size; use it as it is.
+inline constexpr int ViewAspectHostExact = 100;
 inline constexpr const char* kViewAspectLabels[kViewAspectCount] = {
     "3:2 (original)", "4:3", "16:10", "16:9", "Window",
     "Pixel-perfect fit",
@@ -31,7 +34,8 @@ inline constexpr std::uint16_t kViewModeHeights[kViewModeCount] = {160, 240, 320
 
 inline bool view_aspect_dynamic(int aspect) {
     return aspect == ViewAspectWindow ||
-           aspect == ViewAspectMinimalSharpPixels;
+           aspect == ViewAspectMinimalSharpPixels ||
+           aspect == ViewAspectHostExact;
 }
 
 inline int native_integer_scale(int drawable_width, int drawable_height) {
@@ -71,7 +75,10 @@ inline ViewGeometry resolve_aspect_view_geometry(
     const int maximum_height = std::max(160, bound_height);
     int width = maximum_width;
     int height = maximum_height;
-    if (aspect == ViewAspectMinimalSharpPixels) {
+    if (aspect == ViewAspectHostExact) {
+        width = drawable_width > 0 ? drawable_width : 240;
+        height = drawable_height > 0 ? drawable_height : 160;
+    } else if (aspect == ViewAspectMinimalSharpPixels) {
         const int scale = native_integer_scale(drawable_width, drawable_height);
         if (scale < 1) {
             width = 240;

@@ -8,7 +8,7 @@ final class GsrNative {
 			TOUCH_SCALE = 16, TOUCH_OPACITY = 17, RENDERER = 18, /* 19 unused */
 			TOUCH_DPAD = 20, SCREEN_FILTER = 21,
 			CHEAT_HP = 22, CHEAT_PP = 23, CHEAT_EXP = 24, CHEAT_COIN = 25, CHEAT_DROP = 26,
-			PORTRAIT_COMPACT = 27;
+			PORTRAIT_COMPACT = 27, VIEW_ZOOM = 28, ROOM_CLIP = 29;
 
 	/** GsrAction in gsr_controls.h: the GBA buttons first, then these. */
 	static final String[] ACTIONS = { "A", "B", "Select", "Start", "Right", "Left", "Up", "Down", "R", "L",
@@ -17,7 +17,19 @@ final class GsrNative {
 	private GsrNative() {}
 
 	static native int getSetting(int id);
-	static native void setSetting(int id, int value);
+	/** Sets the native value only; {@link #setSetting} also remembers it for the current screen (GsrProfile). */
+	static native void setSettingRaw(int id, int value);
+	/** True once the native side has loaded settings.ini (values set before that are replaced by the file's). */
+	static native boolean settingsReady();
+	/** Pause the game without the menu (folding or unfolding, the notification shade); releases held buttons. */
+	static native void setUserPause(boolean on);
+	/** Let go of every held touch / gamepad button (the app lost focus). */
+	static native void releaseAll();
+
+	static void setSetting(int id, int value) {
+		setSettingRaw(id, value);
+		GsrProfile.remember(id, getSetting(id));
+	}
 	static native void setDebug(boolean on);
 	static native int getBind(int action, int slot);
 	static native void setBind(int action, int slot, int keyCode);

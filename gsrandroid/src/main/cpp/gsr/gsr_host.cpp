@@ -50,6 +50,8 @@ std::atomic<int> g_running{0};
 std::atomic<int> g_quit{0};
 std::atomic<int> g_frames{0};
 std::atomic<int> g_menu_open{0};
+std::atomic<int> g_user_pause{0};                     // paused from Java: folding, the notification shade
+std::atomic<int> g_logical_w{240}, g_logical_h{160};  // the engine's view size (the picture before scaling)
 std::atomic<int> g_veil{0};
 std::atomic<int> g_state_request{0};  // gsr_host_request_state
 
@@ -207,7 +209,7 @@ void gsr_host_poll(GsrHostInput* o) {
     runtime_set_infinite_pp(gsr_settings_get(GSR_S_CHEAT_PP));
     o->keyinput = gsr_controls_keyinput();
     o->fast_forward = gsr_controls_fast_forward();
-    o->paused = descore_is_paused() || g_menu_open.load();
+    o->paused = descore_is_paused() || g_menu_open.load() || g_user_pause.load();
     o->quit = g_quit.load();
 
     // Every two seconds (debuggable builds): what the engine is doing, so a slow or stuck fast-forward shows up in logcat.
@@ -239,6 +241,9 @@ void gsr_host_engine_state(int running) {
 int gsr_host_frame_count(void) { return g_frames.load(); }
 void gsr_host_request_quit(void) { g_quit.store(1); }
 void gsr_host_set_menu_open(int open) { g_menu_open.store(open ? 1 : 0); }
+void gsr_host_set_user_pause(int on) { g_user_pause.store(on ? 1 : 0); }
+void gsr_host_set_logical_size(int w, int h) { g_logical_w.store(w); g_logical_h.store(h); }
+int gsr_host_room_clip(void) { return gsr_settings_get(GSR_S_ROOM_CLIP); }
 static std::atomic<int> g_top_inset{0};
 void gsr_host_set_top_inset(int px) { g_top_inset.store(px > 0 ? px : 0); }
 int gsr_host_portrait_top(int w, int h) { return w > 0 && h > w ? g_top_inset.load() : 0; }
@@ -255,8 +260,29 @@ void gsr_host_game_option_set(const char* key, int value) { gbarecomp::game_opti
 int gsr_host_portrait_picture_h(int w, int h) {
     if (w <= 0 || h <= w) return 0;
     h -= g_top_inset.load();
-    // Both views are 3:2 (240x160, 360x240); leave at least 45% of the screen for the controls.
+    // Fit screen: the view takes the shape of the area, so give it all the room the controls leave.
+    if (gsr_settings_get(GSR_S_VIEW_MODE) == 2) return h * 55 / 100;
+    // Native and Expanded are 3:2 (240x160, 360x240); leave at least 45% of the screen for the controls.
     return std::min(w * 2 / 3, h * 55 / 100);
+}
+
+// Fit screen view: the logical view for the picture area (the whole screen in landscape, the part above the
+// controls in portrait). Zoom 0 is the farthest (the largest view that fits 480x320, the engine's limit) and 10
+// the closest (the native 240x160 just fits one side, the other side shows more). Both sides are kept even.
+void gsr_host_fit_view(int sw, int sh, int* out_w, int* out_h) {
+    const int ph = gsr_host_portrait_picture_h(sw, sh);
+    const double aw = sw, ah = ph > 0 ? ph : sh;
+    int w = 240, h = 160;
+    if (aw > 0 && ah > 0) {
+        const double s_close = std::min(aw / 240.0, ah / 160.0);
+        const double s_far = std::min(s_close, std::max(aw / 480.0, ah / 320.0));
+        const double z = std::clamp(gsr_settings_get(GSR_S_VIEW_ZOOM), 0, 10) / 10.0;
+        const double s = s_far + (s_close - s_far) * z;
+        w = std::clamp(static_cast<int>(aw / s + 0.5) & ~1, 240, 480);
+        h = std::clamp(static_cast<int>(ah / s + 0.5) & ~1, 160, 320);
+    }
+    if (out_w) *out_w = w;
+    if (out_h) *out_h = h;
 }
 void gsr_host_set_veil(int covered) { g_veil.store(covered ? 1 : 0); }
 int gsr_host_veil(void) { return g_veil.load(); }
@@ -289,7 +315,7 @@ int gsr_host_gpu_wanted(void) {
     // drift while fast forwarding), so it is only used when picked.
     // Auto, The Lost Age: the graphics card in the Expanded view. Upstream draws that game's widened view
     // with the graphics card only; the CPU renderer has nothing to put at the sides there (they stay black).
-    default: return gsr_game()->tla && gsr_settings_get(GSR_S_VIEW_MODE) == 1 ? 1 : 0;
+    default: return gsr_game()->tla && gsr_settings_get(GSR_S_VIEW_MODE) >= 1 ? 1 : 0;
     }
 }
 void gsr_host_gpu_report_init(int ok) {
@@ -357,15 +383,23 @@ void gsr_host_render(int sw, int sh) {
 
     // Portrait: the picture fills the area at the top of the screen; the touch controls are below it.
     const int portrait_h = gsr_host_portrait_picture_h(sw, sh);
-    Layout L = compute_layout(sw, portrait_h ? portrait_h : sh, fw, fh, gsr_settings_get(GSR_S_SCALE_MODE));
+    const int area_h = portrait_h ? portrait_h : sh;
+    int scale_mode = gsr_settings_get(GSR_S_SCALE_MODE);
+    // Fit screen: the view already has the area's shape, rounded to whole even pixels. Fill the area exactly
+    // instead of leaving a sliver of black; the difference in shape is under 3%, too little to see.
+    if (gsr_settings_get(GSR_S_VIEW_MODE) == 2 && scale_mode == 0 && fh > 0 && area_h > 0) {
+        const float err = ((float)fw / fh) / ((float)sw / area_h);
+        if (err > 0.97f && err < 1.03f) scale_mode = 2;
+    }
+    Layout L = compute_layout(sw, area_h, fw, fh, scale_mode);
     if (portrait_h) L.y += gsr_host_portrait_top(sw, sh);  // below a camera cutout
     glBindVertexArray(0);
     const float rect[4] = {L.x / sw * 2.0f - 1.0f, (sh - (L.y + L.h)) / sh * 2.0f - 1.0f,
                            (L.x + L.w) / sw * 2.0f - 1.0f, (sh - L.y) / sh * 2.0f - 1.0f};
     const float uvr[4] = {L.u0, L.v0, L.u1, L.v1};
     // The filters work in original pixels: High-res rendering hands over a whole-number enlargement of the
-    // 240x160 (Native) or 360x240 (Expanded) picture, so divide that back out.
-    const int base_w = gsr_settings_get(GSR_S_VIEW_MODE) ? 360 : 240;
+    // engine's view (240x160 Native, 360x240 Expanded, any size for Fit screen), so divide that back out.
+    const int base_w = std::max(240, g_logical_w.load());
     const int k = (fw >= base_w && fw % base_w == 0 && fh % (fw / base_w) == 0) ? fw / base_w : 1;
     if (!gsr_screen_filter_draw(screen_filter, rect, uvr, (float)(fw / k), (float)(fh / k), L.w, L.h)) {
         glUseProgram(g_prog);

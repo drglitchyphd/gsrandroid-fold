@@ -9,6 +9,19 @@
 // actors from outside the active room against black. Share one clipping rule
 // and extend this list only with captured evidence. Other maps have legitimate
 // airborne actors/effects beyond camera bounds (0019, map 82).
+// Android port: the player can turn the rule off, keep it to the verified
+// rooms (upstream), or apply it in every room except the maps with known
+// airborne actors (gsr_host_room_clip; absent outside the Android port).
+extern "C" int gsr_host_room_clip(void) __attribute__((weak));
+inline bool tla_room_clip_applies(unsigned map) {
+    const int mode = gsr_host_room_clip ? gsr_host_room_clip() : 1;
+    if (mode <= 0) return false;
+    if (map == 142u || map == 170u) return true;
+    // Every room: not the world map (2, 3) or map 82 (airborne actors and
+    // effects legitimately beyond the camera bounds, 0019).
+    return mode >= 2 && map != 2u && map != 3u && map != 82u;
+}
+
 // Keep every sprite touching either the active room or the native screen.
 inline void tla_hide_outside_room(gsr::FieldScene& scene,
         const std::uint8_t* ewram, std::size_t ewram_bytes,
@@ -17,7 +30,7 @@ inline void tla_hide_outside_room(gsr::FieldScene& scene,
         ewram_bytes < 0x42Au || iwram_bytes < 0x28u)
         return;
     const unsigned map = unsigned(ewram[0x428]) | (unsigned(ewram[0x429]) << 8);
-    if (map != 142u && map != 170u) return;
+    if (!tla_room_clip_applies(map)) return;
     const auto rd32 = [](const std::uint8_t* p) {
         return std::uint32_t(p[0]) | (std::uint32_t(p[1]) << 8) |
                (std::uint32_t(p[2]) << 16) | (std::uint32_t(p[3]) << 24);
