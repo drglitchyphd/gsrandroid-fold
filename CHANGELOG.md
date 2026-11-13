@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased: foldables]
+
+### Added
+- Foldables (Galaxy Z Fold and similar): the game and the launcher turn with the device on both the inner and the cover screen. Settings > Display > Orientation: Auto, Landscape or Portrait  
+- Fit screen view (Settings > Display > Screen view): the game shows more of the world to take the screen's shape, up to 480x320, with no stretching. Zoom sets how close it is  
+- Per-screen settings: the view, zoom, scaling, pixels, screen filter and touch controls are kept separately for the inner and cover screen, in landscape and in portrait. A screen you haven't used yet starts on Fit screen, zoomed further out on the inner screen and closer on the cover screen  
+- Pause when folding or unfolding: tap, A or Start to resume (Settings > Display)  
+- Pause behind the notification shade, resuming when it closes (Settings > Display)  
+- The Lost Age: Hide characters outside the room now works in every room, not only the two rooms upstream checked (Settings > Display; Off, Checked rooms or Every room)  
+- Material You look for the side menu and launcher, with colours from your wallpaper on Android 12 and later. The menu has two panes on big screens, slides up from the bottom on a portrait phone screen, and sits at the side in landscape  
+
+### Fixed
+- Held buttons are let go when the app loses focus (notification shade, pop-ups), so they no longer stay pressed  
+- Folding or unfolding no longer risks restarting the game screen  
+- Portrait controls layout is now saved  
+
 ## [0.5. (11-07-2026)]
 
 ### Added

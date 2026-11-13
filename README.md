@@ -52,6 +52,8 @@ Features
 - Saves page: export and import .sav files (GBA emulators, flash carts), undo an import, and back up both games' saves to a folder of your choice.  
 - Renderer choice: Auto, CPU or GPU (experimental). Auto uses the CPU for Golden Sun and the GPU for The Lost Age in Expanded view.  
 - Portrait mode for phones (Settings > Display > Orientation), with the controls spread out, compact under the picture, or compact at the bottom.  
+- Foldables: turns with the device on the inner and cover screens. Fit screen view shows more of the world to fill each screen's shape, with a Zoom, and the view and touch settings are kept per screen and orientation.  
+- Pauses when you fold or unfold, or pull down the notification shade.  
 - Side menu for settings: view mode, scaling, filter, fast forward, frame interpolation, etc.  
 - Screen filters  
 - Save states  
