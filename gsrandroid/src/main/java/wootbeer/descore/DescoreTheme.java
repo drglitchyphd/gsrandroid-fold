@@ -4,7 +4,9 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.Typeface;
 import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 
 /**
@@ -20,6 +22,8 @@ public final class DescoreTheme {
 	public final int onSurface, onSurfaceVariant, outline, outlineVariant;
 	/** A dark veil drawn over the game behind a sheet or dialog. */
 	public final int scrim = 0x99000000;
+	/** Material 3's dark-scheme error roles (fixed: the system palettes have no error colours). */
+	public final int error = 0xFFFFB4AB, onError = 0xFF690005, errorContainer = 0xFF93000A, onErrorContainer = 0xFFFFDAD6;
 	public final float density;
 
 	private DescoreTheme(Context c, int[] v) {
@@ -93,5 +97,45 @@ public final class DescoreTheme {
 	public Drawable pressable(int color, float radiusDp) {
 		return new RippleDrawable(ColorStateList.valueOf(alpha(onSurface, 0.12f)), rounded(color, radiusDp),
 				rounded(0xFFFFFFFF, radiusDp));
+	}
+
+	/** A filled shape with each corner's own radius (dp), clockwise from the top left. */
+	public GradientDrawable rounded(int color, float topLeftDp, float topRightDp, float bottomRightDp, float bottomLeftDp) {
+		GradientDrawable d = new GradientDrawable();
+		d.setColor(color);
+		float tl = dp(topLeftDp), tr = dp(topRightDp), br = dp(bottomRightDp), bl = dp(bottomLeftDp);
+		d.setCornerRadii(new float[] { tl, tl, tr, tr, br, br, bl, bl });
+		return d;
+	}
+
+	/** A rounded shape with an outline (stroke width and radius in dp). */
+	public GradientDrawable outlined(int fill, int stroke, float strokeDp, float radiusDp) {
+		GradientDrawable d = rounded(fill, radiusDp);
+		d.setStroke(Math.max(1, dp(strokeDp)), stroke);
+		return d;
+	}
+
+	/**
+	 * For list rows and other views a gamepad moves between (the system's focus highlight is off): {@code rest}
+	 * normally, {@code focused} while focused, and a press ripple in the same rounded shape.
+	 */
+	public Drawable focusable(int rest, int focused, float radiusDp) {
+		StateListDrawable s = new StateListDrawable();
+		s.addState(new int[] { android.R.attr.state_focused }, rounded(focused, radiusDp));
+		s.addState(new int[0], rounded(rest, radiusDp));
+		return new RippleDrawable(ColorStateList.valueOf(alpha(onSurface, 0.12f)), s, rounded(0xFFFFFFFF, radiusDp));
+	}
+
+	/** Like {@link #focusable} but focus shows as a ring of {@code ring} around the {@code fill} shape. */
+	public Drawable focusRing(int fill, int ring, float radiusDp) {
+		StateListDrawable s = new StateListDrawable();
+		s.addState(new int[] { android.R.attr.state_focused }, outlined(fill, ring, 3, radiusDp));
+		s.addState(new int[0], rounded(fill, radiusDp));
+		return new RippleDrawable(ColorStateList.valueOf(alpha(onSurface, 0.12f)), s, rounded(0xFFFFFFFF, radiusDp));
+	}
+
+	/** Material's "medium" weight, used for titles, labels and buttons. */
+	public static Typeface medium() {
+		return Typeface.create("sans-serif-medium", Typeface.NORMAL);
 	}
 }

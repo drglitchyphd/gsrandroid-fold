@@ -68,7 +68,7 @@ final class GsrProfile {
 	 */
 	static boolean apply(Activity a, boolean[] changedScreen) {
 		app = a.getApplicationContext();
-		if (changedScreen != null && changedScreen.length > 0) changedScreen[0] = false;
+		if (changedScreen != null) java.util.Arrays.fill(changedScreen, false);
 		boolean ready;
 		try {
 			ready = GsrNative.settingsReady();
@@ -81,6 +81,8 @@ final class GsrProfile {
 		if (key.equals(applied)) return true;
 		if (applied != null && changedScreen != null && changedScreen.length > 0)
 			changedScreen[0] = !applied.substring(0, 5).equals(key.substring(0, 5));
+		// [1]: the profile changed at all (folding, unfolding or turning), not the first apply.
+		if (applied != null && changedScreen != null && changedScreen.length > 1) changedScreen[1] = true;
 		SharedPreferences p = prefs();
 		SharedPreferences.Editor e = p.edit();
 		for (int id : PER_SCREEN) {
@@ -103,7 +105,7 @@ final class GsrProfile {
 		return true;
 	}
 
-	/** Forget every screen's values (Settings > Reset this screen does one, this does all). */
+	/** Settings > Reset this screen's settings: the view back to Fit screen at this screen's zoom. */
 	static void resetCurrent(Activity a) {
 		app = a.getApplicationContext();
 		String key = key(a.getResources().getConfiguration());

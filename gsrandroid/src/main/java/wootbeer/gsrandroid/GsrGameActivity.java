@@ -30,7 +30,7 @@ public class GsrGameActivity extends DescoreGameActivity {
 	private android.view.View pauseOverlay;
 	/** Paused because the window lost focus (the notification shade), resumed when it comes back. */
 	private boolean focusPaused;
-	private final boolean[] screenChanged = new boolean[1];
+	private final boolean[] screenChanged = new boolean[2];
 	private final Runnable applyProfile = new Runnable() {
 		@Override public void run() {
 			handler.removeCallbacks(this);
@@ -43,7 +43,7 @@ public class GsrGameActivity extends DescoreGameActivity {
 					&& GsrDisplay.flag(GsrGameActivity.this, GsrDisplay.FLAG_PAUSE_ON_FOLD, true)) {
 				showPauseOverlay();
 			}
-			if (menu != null) menu.screenChanged();
+			if (screenChanged[1] && menu != null) menu.screenChanged();
 		}
 	};
 	private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
