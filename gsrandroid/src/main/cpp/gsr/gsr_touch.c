@@ -507,7 +507,7 @@ static GLuint g_prog, g_vbo, g_lprog, g_ltex;
 static GLint u_screen, u_rect, u_radius, u_shape, u_fill, u_stroke, u_sw;
 static GLint ul_screen, ul_color;
 #define ATLAS_W 256
-#define ATLAS_H 64
+#define ATLAS_H 128  /* three rows of captions at ATLAS_SCALE; build_gl checks they fit */
 #define ATLAS_SCALE 3
 static struct { int x, y, w, h; } g_cap[GT_COUNT];
 
@@ -564,6 +564,7 @@ static void build_gl(void) {
 		int w = (int) strlen(k_caption[i]) * 6 * ATLAS_SCALE, h = 8 * ATLAS_SCALE;
 		if (w == 0) continue;
 		if (x + w > ATLAS_W) { x = 0; y += h + 2; }
+		if (y + h > ATLAS_H) break;  /* never write past the buffer (it once overran and corrupted the uniforms) */
 		gsr_text_blit(k_caption[i], ATLAS_SCALE, px, ATLAS_W, x, y);
 		g_cap[i].x = x; g_cap[i].y = y; g_cap[i].w = w - ATLAS_SCALE; g_cap[i].h = 7 * ATLAS_SCALE;
 		x += w + 2;

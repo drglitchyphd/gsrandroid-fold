@@ -205,6 +205,9 @@ final class GsrMenu {
 		}
 
 		dialog.setContentView(root);
+		// A dialog theme is "floating": setContentView puts the window back to wrap its content, so the panel took the
+		// size of each page and moved as the pages changed. Fill the screen again so it stays anchored in one place.
+		w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 		dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
 			@Override
 			public boolean onKey(DialogInterface d, int keyCode, KeyEvent event) {
@@ -231,6 +234,7 @@ final class GsrMenu {
 			}
 		});
 		dialog.show();
+		w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 		dialog.getWindow().getDecorView().setSystemUiVisibility(
 				View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
 						| View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
