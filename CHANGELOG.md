@@ -16,6 +16,8 @@
   - Tap for A and two-finger tap for B, on empty screen. Both turn on when you pick Floating D-pad; a tap on the D-pad side without moving is A too
   - Show A button and Show B button, each on its own switch
   - Button styles: Flat, Outlined or GBA SP. Button colours: Wallpaper, Grey, White, Dark, Blue, Red, Green or Purple. Opacity down to 5%, and Fade when idle
+  - Floating D-pad area: Left half or Anywhere, for one-handed play. With Anywhere, a quick tap without moving is A and a two-finger tap is B
+  - Run: a RUN button (and left-stick click on a gamepad) toggles running. B is held for you while you walk, but never while a menu or dialogue box is open or in battle, so it can't cancel menus or skip text
   - Turbo A and B buttons (3 to 20 presses a second)
   - Fast-forward button: tap to toggle, hold to fast-forward while held
   - Layout editor (Edit touch layout): drag controls to move them, set each one's size, hide or show it. Saved per screen and orientation

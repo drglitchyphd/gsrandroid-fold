@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-enum { GT_DPAD, GT_A, GT_B, GT_L, GT_R, GT_START, GT_SELECT, GT_FF, GT_MENU, GT_TURBO_A, GT_TURBO_B, GT_COUNT };
+enum { GT_DPAD, GT_A, GT_B, GT_L, GT_R, GT_START, GT_SELECT, GT_FF, GT_MENU, GT_TURBO_A, GT_TURBO_B, GT_RUN, GT_COUNT };
 
 /* Where layouts are saved (the shared settings folder). Call once, before the first layout. */
 void gsr_touch_init(const char *dir);

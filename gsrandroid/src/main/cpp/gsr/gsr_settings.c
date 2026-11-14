@@ -48,6 +48,8 @@ static const Spec k_spec[GSR_S_COUNT] = {
 	[GSR_S_SHOW_B]        = { "show_b", 1, 0, 1 },
 	[GSR_S_TURBO]         = { "turbo", 0, 0, 1 },
 	[GSR_S_TURBO_RATE]    = { "turbo_rate", 10, 3, 20 },
+	[GSR_S_FLOAT_ANYWHERE] = { "float_anywhere", 0, 0, 1 },
+	[GSR_S_RUN_BUTTON]    = { "run_button", 0, 0, 1 },
 };
 
 static atomic_int g_val[GSR_S_COUNT];

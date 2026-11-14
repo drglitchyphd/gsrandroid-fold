@@ -31,7 +31,7 @@ static atomic_uint g_stick_dirs;  /* left stick, as action bits */
 static atomic_uint g_hat_dirs;
 static atomic_uint g_touch_mask;  /* touch buttons, action bits */
 static atomic_uint g_touch_dirs;  /* touch d-pad circle, action bits */
-static atomic_int g_ff_latch, g_ff_prev, g_menu_prev;
+static atomic_int g_ff_latch, g_ff_prev, g_menu_prev, g_run_prev, g_run_latch;
 static atomic_llong g_touch_down_at[GSR_ACT_COUNT];  /* when a touch button went down (for the minimum press) */
 static atomic_llong g_tap_until[GSR_ACT_COUNT];      /* timed presses: held until this time */
 static atomic_llong g_turbo_since[GSR_ACT_COUNT];    /* turbo held since (0 = not held) */
@@ -56,6 +56,7 @@ static void defaults(void) {
 	g_bind[GSR_ACT_LEFT][0] = K_DPAD_LEFT; g_bind[GSR_ACT_RIGHT][0] = K_DPAD_RIGHT;
 	g_bind[GSR_ACT_FF][0] = K_BTN_R2;
 	g_bind[GSR_ACT_MENU][0] = K_BTN_THUMBR; g_bind[GSR_ACT_MENU][1] = K_BTN_MODE;
+	g_bind[GSR_ACT_RUN][0] = 106;  /* KEYCODE_BUTTON_THUMBL: clicking the left stick toggles running */
 }
 
 static void save_binds(void) {
@@ -134,9 +135,20 @@ static void menu_changed(void) {
 	if (now && !prev) descore_request_menu();
 }
 
+/* Run: a gamepad button bound to it toggles running on its press. */
+static void run_changed(void) {
+	int now = (held_actions() >> GSR_ACT_RUN) & 1;
+	int prev = atomic_exchange(&g_run_prev, now);
+	if (now && !prev) atomic_fetch_xor(&g_run_latch, 1);
+}
+
+void gsr_controls_touch_run_toggle(void) { atomic_fetch_xor(&g_run_latch, 1); }
+int gsr_controls_run_active(void) { return atomic_load(&g_run_latch); }
+
 static void edges(void) {
 	ff_changed();
 	menu_changed();
+	run_changed();
 }
 
 void gsr_controls_release_all(void) {
@@ -147,6 +159,7 @@ void gsr_controls_release_all(void) {
 	atomic_store(&g_touch_dirs, 0);
 	atomic_store(&g_ff_prev, 0);
 	atomic_store(&g_menu_prev, 0);
+	atomic_store(&g_run_prev, 0);
 	for (int a = 0; a < GSR_ACT_COUNT; a++) { atomic_store(&g_tap_until[a], 0); atomic_store(&g_turbo_since[a], 0); }
 	atomic_store(&g_touch_ff_hold, 0);
 	gsr_touch_release_all();
@@ -379,6 +392,8 @@ void gsr_controls_layout(int w, int h) {
 		gsr_touch_set_default(GT_TURBO_A, a[0] + (a[2] - t) * 0.5f, a[1] - t - m * 0.5f, t, t);
 		gsr_touch_set_default(GT_TURBO_B, b[0] - t - m * 0.5f, b[1] + (b[3] - t) * 0.5f, t, t);
 	}
+	/* Run (when turned on): a small pill just above the direction pad */
+	gsr_touch_set_default(GT_RUN, g_pad[0] - cell * 0.75f, g_pad[1] - g_pad[2] - cell * 0.8f - m, cell * 1.5f, cell * 0.8f);
 	gsr_touch_layout_done(w, h);
 }
 

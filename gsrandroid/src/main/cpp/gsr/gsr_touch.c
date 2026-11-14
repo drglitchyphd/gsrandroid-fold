@@ -24,11 +24,11 @@
 #define PAIR_MUTE_MS 300        /* single taps ignored this long after a two-finger tap */
 #define FLOAT_DEAD 0.18f        /* floating D-pad: dead zone, fraction of its radius */
 
-static const char *k_name[GT_COUNT] = { "dpad", "a", "b", "l", "r", "start", "select", "ff", "menu", "turbo_a", "turbo_b" };
-static const char *k_label[GT_COUNT] = { "D-pad", "A", "B", "L", "R", "Start", "Select", "Fast forward", "Menu", "Turbo A", "Turbo B" };
-static const char *k_caption[GT_COUNT] = { "", "A", "B", "L", "R", "START", "SELECT", "FF", "MENU", "TA", "TB" };
+static const char *k_name[GT_COUNT] = { "dpad", "a", "b", "l", "r", "start", "select", "ff", "menu", "turbo_a", "turbo_b", "run" };
+static const char *k_label[GT_COUNT] = { "D-pad", "A", "B", "L", "R", "Start", "Select", "Fast forward", "Menu", "Turbo A", "Turbo B", "Run" };
+static const char *k_caption[GT_COUNT] = { "", "A", "B", "L", "R", "START", "SELECT", "FF", "MENU", "TA", "TB", "RUN" };
 static const int k_action[GT_COUNT] = { -1, GSR_ACT_A, GSR_ACT_B, GSR_ACT_L, GSR_ACT_R, GSR_ACT_START, GSR_ACT_SELECT,
-		GSR_ACT_FF, GSR_ACT_MENU, GSR_ACT_A, GSR_ACT_B };
+		GSR_ACT_FF, GSR_ACT_MENU, GSR_ACT_A, GSR_ACT_B, -1 };
 
 typedef struct {
 	float dx, dy, dw, dh;   /* default rectangle (pixels) */
@@ -82,6 +82,7 @@ static int offered(int i) {
 	case GT_A: return gsr_settings_get(GSR_S_SHOW_A);
 	case GT_B: return gsr_settings_get(GSR_S_SHOW_B);
 	case GT_TURBO_A: case GT_TURBO_B: return gsr_settings_get(GSR_S_TURBO);
+	case GT_RUN: return gsr_settings_get(GSR_S_RUN_BUTTON);
 	default: return 1;
 	}
 }
@@ -217,9 +218,12 @@ static int in_fixed_pad(float x, float y) {
 	return visible(GT_DPAD) && dx * dx + dy * dy <= r * r * HIT_SCALE * HIT_SCALE;
 }
 
-/* The floating D-pad's area: the left half of the screen (in portrait, below the picture). */
+/* The floating D-pad's area: the left half of the screen (in portrait, below the picture), or anywhere that is not
+ * a button (Floating D-pad area: Anywhere, for one-handed play; a tap without moving is then A). */
 static int in_float_zone(float x, float y) {
-	if (scheme() != 2 || x >= g_w * 0.5f) return 0;
+	if (scheme() != 2) return 0;
+	if (gsr_settings_get(GSR_S_FLOAT_ANYWHERE)) return 1;
+	if (x >= g_w * 0.5f) return 0;
 	if (g_h > g_w) {
 		return y >= gsr_host_portrait_top(g_w, g_h) + gsr_host_portrait_picture_h(g_w, g_h);
 	}
@@ -230,6 +234,7 @@ static void press_elem(int i, int down) {
 	switch (i) {
 	case GT_FF: gsr_controls_touch_ff(down); break;
 	case GT_TURBO_A: case GT_TURBO_B: gsr_controls_touch_turbo(k_action[i], down); break;
+	case GT_RUN: if (down) gsr_controls_touch_run_toggle(); break;
 	default: if (k_action[i] >= 0) gsr_controls_touch_set(k_action[i], down); break;
 	}
 }
@@ -355,7 +360,9 @@ int gsr_touch_event(int action, int id, float x, float y) {
 			/* a second finger landing soon after another tap finger: a two-finger tap */
 			if (gsr_settings_get(GSR_S_TWO_FINGER_B)) {
 				for (int k = 0; k < DESCORE_TOUCH_MAX_POINTERS; k++) {
-					if (k == id || g_p[k].kind != P_TAP || g_p[k].pair >= 0 || t - g_p[k].t0 > PAIR_MS) continue;
+					/* the other finger: another tap, or a floating D-pad thumb that has not moved off its centre yet */
+					const int still_pad = g_p[k].kind == P_FLOAT && g_p[k].moved < FLOAT_DEAD * g_e[GT_DPAD].dw * 0.5f;
+					if (k == id || (g_p[k].kind != P_TAP && !still_pad) || g_p[k].pair >= 0 || t - g_p[k].t0 > PAIR_MS) continue;
 					g_p[k].pair = id; p->pair = k;
 					break;
 				}
@@ -393,14 +400,21 @@ int gsr_touch_event(int action, int id, float x, float y) {
 	case DESCORE_TOUCH_ACTION_POINTER_UP: {
 		const int quick = t - p->t0 < TAP_MS;
 		if (p->kind == P_TAP && quick) {
-			if (p->pair >= 0 && g_p[p->pair].kind == P_TAP) {
-				g_p[p->pair].kind = P_NONE;  /* the other finger of the pair does not tap again */
+			if (p->pair >= 0 && (g_p[p->pair].kind == P_TAP || g_p[p->pair].kind == P_FLOAT)) {
+				release_ptr(&g_p[p->pair]);  /* the other finger of the pair does not tap again (or steer) */
 				gsr_controls_touch_tap(GSR_ACT_B);
 				g_mute_until = t + PAIR_MUTE_MS;
 			} else if (p->pair < 0 && gsr_settings_get(GSR_S_TAP_A) && t >= g_mute_until) {
 				gsr_controls_touch_tap(GSR_ACT_A);
 			}
 			p->kind = P_NONE;
+		} else if (p->kind == P_FLOAT && quick && p->pair >= 0 && g_p[p->pair].kind == P_TAP
+				&& p->moved < FLOAT_DEAD * g_e[GT_DPAD].dw * 0.5f) {
+			/* the D-pad thumb lifting first from a two-finger tap */
+			release_ptr(p);
+			g_p[p->pair].kind = P_NONE;
+			gsr_controls_touch_tap(GSR_ACT_B);
+			g_mute_until = t + PAIR_MUTE_MS;
 		} else if (p->kind == P_FLOAT && quick && p->moved < FLOAT_DEAD * g_e[GT_DPAD].dw * 0.5f
 				&& gsr_settings_get(GSR_S_TAP_A) && t >= g_mute_until) {
 			release_ptr(p);
@@ -614,6 +628,7 @@ static int round_elem(int i) { return i == GT_A || i == GT_B || i == GT_TURBO_A 
 
 static int is_pressed(int i) {
 	if (i == GT_FF) return gsr_controls_fast_forward();
+	if (i == GT_RUN) return gsr_controls_run_active();
 	for (int k = 0; k < DESCORE_TOUCH_MAX_POINTERS; k++)
 		if (g_p[k].kind == P_BUTTON && g_p[k].elem == i) return 1;
 	return 0;

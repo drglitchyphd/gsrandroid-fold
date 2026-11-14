@@ -20,6 +20,7 @@ typedef enum {
 	GSR_ACT_LEFT, GSR_ACT_UP, GSR_ACT_DOWN, GSR_ACT_R, GSR_ACT_L,
 	GSR_ACT_FF,
 	GSR_ACT_MENU,
+	GSR_ACT_RUN,      /* toggles running (gsr_controls_run_active) */
 	GSR_ACT_COUNT
 } GsrAction;
 #define GSR_BIND_SLOTS 2
@@ -45,6 +46,10 @@ void gsr_controls_touch_tap(int act);
 void gsr_controls_touch_dirs(unsigned action_bits);
 void gsr_controls_touch_turbo(int act, int down);
 void gsr_controls_touch_ff(int down);
+/* The Run toggle (the touch RUN button or a gamepad button bound to Run): while on, the engine holds B whenever a
+ * direction is held and the game allows it (no window open, no battle: gsr_game_run_allowed). */
+void gsr_controls_touch_run_toggle(void);
+int gsr_controls_run_active(void);
 int gsr_controls_fast_forward(void);
 
 /* Remapping. keycode 0 = unbound. Binding a key that another action already uses moves it. */

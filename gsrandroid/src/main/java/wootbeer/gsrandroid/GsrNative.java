@@ -10,11 +10,11 @@ final class GsrNative {
 			CHEAT_HP = 22, CHEAT_PP = 23, CHEAT_EXP = 24, CHEAT_COIN = 25, CHEAT_DROP = 26,
 			PORTRAIT_COMPACT = 27, VIEW_ZOOM = 28, ROOM_CLIP = 29,
 			TOUCH_STYLE = 30, TOUCH_COLOR = 31, TOUCH_FADE = 32, TAP_A = 33, TWO_FINGER_B = 34, SHOW_A = 35, SHOW_B = 36,
-			TURBO = 37, TURBO_RATE = 38;
+			TURBO = 37, TURBO_RATE = 38, FLOAT_ANYWHERE = 39, RUN_BUTTON = 40;
 
 	/** GsrAction in gsr_controls.h: the GBA buttons first, then these. */
 	static final String[] ACTIONS = { "A", "B", "Select", "Start", "Right", "Left", "Up", "Down", "R", "L",
-			"Fast forward", "Menu" };
+			"Fast forward", "Menu", "Run (toggle)" };
 
 	private GsrNative() {}
 

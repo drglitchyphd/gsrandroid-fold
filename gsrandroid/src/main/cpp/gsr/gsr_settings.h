@@ -49,6 +49,8 @@ typedef enum {
 	GSR_S_SHOW_B,        /* the on-screen B button */
 	GSR_S_TURBO,         /* turbo A and turbo B buttons */
 	GSR_S_TURBO_RATE,    /* turbo presses per second, 3..20 */
+	GSR_S_FLOAT_ANYWHERE, /* floating D-pad: 0 on the left half, 1 anywhere that is not a button (one-handed play) */
+	GSR_S_RUN_BUTTON,    /* the on-screen Run toggle */
 	GSR_S_COUNT
 } GsrSetting;
 

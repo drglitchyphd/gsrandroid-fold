@@ -1169,10 +1169,16 @@ final class GsrMenu {
 		});
 		sub("Touch controls");
 		choice("Direction control", GsrNative.TOUCH_DPAD, new String[] { "Joystick", "D-pad", "Floating D-pad" });
+		if (GsrNative.getSetting(GsrNative.TOUCH_DPAD) == 2) {
+			// Anywhere: one-handed play; a quick tap without moving is A, a two-finger tap B.
+			choice("Floating D-pad area", GsrNative.FLOAT_ANYWHERE, new String[] { "Left half", "Anywhere" });
+		}
 		choice("Tap for A", GsrNative.TAP_A, OFF_ON);
 		choice("Two-finger tap for B", GsrNative.TWO_FINGER_B, OFF_ON);
 		choice("Show A button", GsrNative.SHOW_A, OFF_ON);
 		choice("Show B button", GsrNative.SHOW_B, OFF_ON);
+		// Run: B held for you while walking (never in menus, dialogue or battle). Left stick click toggles it too.
+		choice("Run button", GsrNative.RUN_BUTTON, OFF_ON);
 		choice("Turbo A and B buttons", GsrNative.TURBO, OFF_ON);
 		if (GsrNative.getSetting(GsrNative.TURBO) != 0) {
 			int[] rates = { 3, 5, 8, 10, 12, 15, 20 };

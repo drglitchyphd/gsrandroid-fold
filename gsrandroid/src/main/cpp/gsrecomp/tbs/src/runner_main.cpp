@@ -9293,6 +9293,12 @@ bool game_window_open() {
     return false;
 }
 
+// Android port, the Run toggle (gsr_controls): B may be held for running only while walking freely, with no
+// game window (menus, dialogue) and no battle, so it never cancels a menu or acts in a fight.
+bool gsr_android_run_allowed() {
+    return !game_window_open() && bus_read_u32(gsr::battle_speed::kBattleHeapSlot) == 0u;
+}
+
 void build_room_vram(const std::vector<std::uint8_t>& vram,
                      const std::array<std::uint16_t, 512>& palette,
                      std::vector<std::uint8_t>* out,
@@ -15958,3 +15964,7 @@ int main(int argc, char** argv) {
     gbarecomp::crash_handler_mark_clean_exit();
     return result;
 }
+
+#ifdef GSR_ANDROID_ENGINE
+extern "C" int gsr_game_run_allowed(void) { return gsr_android_run_allowed() ? 1 : 0; }
+#endif

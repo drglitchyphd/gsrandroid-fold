@@ -22,6 +22,8 @@
 #include <memory>
 #include <vector>
 
+extern "C" int gsr_game_run_allowed(void) __attribute__((weak));  // each game's engine (tbs runner_main, tla_widescreen)
+extern "C" int gsr_controls_run_active(void);                    // gsr_controls.c (the host library)
 extern "C" bool g_frame_present_in_progress;  // runtime_arm.cpp; true while runtime_bus_bridge.cpp runs the present-in-place hook
 
 namespace gbarecomp {
@@ -288,6 +290,11 @@ HostWindow::Events HostWindow::pump() {
     gsr_host_poll(&in);
     ev.quit = in.quit != 0;
     ev.keyinput = in.keyinput;
+    // The Run toggle: hold B (running) while a direction is held, only where the game allows it -- walking freely,
+    // no menu or dialogue window and no battle (gsr_game_run_allowed, in each game's own code), so B never cancels
+    // a menu or acts in a fight. KEYINPUT is active low: B is bit 1, the directions bits 4..7.
+    if (gsr_controls_run_active() && (ev.keyinput & 0xF0u) != 0xF0u && gsr_game_run_allowed && gsr_game_run_allowed())
+        ev.keyinput = static_cast<uint16_t>(ev.keyinput & ~0x2u);
     ev.fast_forward = in.fast_forward != 0;
     ev.turbo_multiplier = gsr_settings_get(GSR_S_FF_MULT10) / 10.0f;
     ev.turbo_uncapped = gsr_settings_get(GSR_S_FF_UNCAPPED) != 0;

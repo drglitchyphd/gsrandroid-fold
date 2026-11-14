@@ -1154,3 +1154,19 @@ void tla_install_widescreen(gbarecomp::RunOptions& options) {
     g_next_branch = options.conditional_branch_override;
     options.conditional_branch_override = builder_branch;
 }
+
+#ifdef GSR_ANDROID_ENGINE
+// Android port, the Run toggle (gsr_controls): B may be held for running only while walking freely, with no game
+// window (menus, dialogue: the same test as tla_gpu_field.cpp game_window_open) and no battle.
+extern "C" int gsr_game_run_allowed(void) {
+    gba::GbaBus* b = gbarecomp::active_bus();
+    if (!b) return 0;
+    if (b->read32(kTlaBattleSlot) != 0u) return 0;
+    if ((b->read16(0x04000000u) & 0x100u) == 0u) return 1;  // the window layer is off: nothing open
+    const std::uint32_t block = b->read32(kTlaWindowBlockSlot);
+    if ((block >> 24) != 0x02u) return 1;
+    for (std::uint32_t i = 0; i < 32u * 20u; ++i)
+        if ((b->read16(block + kTlaWindowMapOffset + i * 2u) & 0x3FFu) != 0u) return 0;
+    return 1;
+}
+#endif
