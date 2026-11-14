@@ -142,6 +142,7 @@ set(GSR_SOURCES
 		gsr/gsr_android.cpp
 		gsr/gsr_settings.c
 		gsr/gsr_controls.c
+		gsr/gsr_touch.c
 		gsr/gsr_host.cpp
 		gsr/gsr_screen_filter.cpp
 		gsr/gsr_jni.c

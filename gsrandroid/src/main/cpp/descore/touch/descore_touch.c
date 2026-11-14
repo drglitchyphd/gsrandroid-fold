@@ -343,9 +343,19 @@ static void handle_move(int pointer_id, float x, float y) {
     s_touch_pointer_button[pointer_id] = cur_idx;
 }
 
+static DescoreTouchHandleFn s_ov_handle = NULL;
+static DescoreTouchDrawFn s_ov_draw = NULL;
+
+void descore_touch_set_override(DescoreTouchHandleFn handle, DescoreTouchDrawFn draw) {
+    s_ov_handle = handle;
+    s_ov_draw = draw;
+}
+
 bool descore_touch_handle(int action, int pointer_id, float x, float y) {
     bool any_visible;
     int i;
+
+    if (s_ov_handle) return s_ov_handle(action, pointer_id, x, y) != 0;
 
     if (!s_initialized) {
         return false;
@@ -423,6 +433,8 @@ float descore_touch_opacity(void) {
 void descore_touch_draw(void) {
     int i;
     bool any_visible;
+
+    if (s_ov_draw) { s_ov_draw(); return; }
 
     if (!s_initialized) {
         return;

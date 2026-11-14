@@ -117,6 +117,13 @@ float descore_touch_opacity(void);
  * (see the draw function in descore_touch.c). */
 void descore_touch_draw(void);
 
+/* A port with its own touch controls: every touch event goes to handle (its return value is what
+ * descore_touch_handle returns) and descore_touch_draw calls draw instead of drawing the buttons. Gamepad
+ * tracking (descore_touch_set_gamepad_connected) carries on as before. */
+typedef int (*DescoreTouchHandleFn)(int action, int pointer_id, float x, float y);
+typedef void (*DescoreTouchDrawFn)(void);
+void descore_touch_set_override(DescoreTouchHandleFn handle, DescoreTouchDrawFn draw);
+
 /* ---- Analog touch sticks and a look pad (GLES3 mode draws them; hidden while a gamepad is connected) ----
  * Added for the 3D port: a game with movement + camera needs analog input, which the button table above
  * cannot express. Mechanism only: the game says where they are and what to do with the values. */

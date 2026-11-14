@@ -178,3 +178,34 @@ JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_setGameOption(JNIEnv *
 	(void) c;
 	if (k) { gsr_host_game_option_set(k, value); (*env)->ReleaseStringUTFChars(env, key, k); }
 }
+
+/* ---- touch controls (gsr_touch.c): screen profile, wallpaper colours, layout editor ---- */
+#include "gsr_touch.h"
+
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_setTouchProfile(JNIEnv *env, jclass c, jstring profile)
+{
+	const char *s;
+	(void) c;
+	if (!profile) return;
+	s = (*env)->GetStringUTFChars(env, profile, NULL);
+	if (!s) return;
+	gsr_touch_set_profile(s);
+	(*env)->ReleaseStringUTFChars(env, profile, s);
+}
+
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_setTouchPalette(JNIEnv *env, jclass c, jint fill, jint on)
+{
+	(void) env; (void) c;
+	gsr_touch_set_palette((unsigned) fill, (unsigned) on);
+}
+
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_editBegin(JNIEnv *env, jclass c) { (void) env; (void) c; gsr_touch_edit_begin(); }
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_editEnd(JNIEnv *env, jclass c, jboolean save) { (void) env; (void) c; gsr_touch_edit_end(save ? 1 : 0); }
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_editReset(JNIEnv *env, jclass c) { (void) env; (void) c; gsr_touch_edit_reset(); }
+JNIEXPORT jint JNICALL Java_wootbeer_gsrandroid_GsrNative_editSelected(JNIEnv *env, jclass c) { (void) env; (void) c; return gsr_touch_edit_selected(); }
+JNIEXPORT jstring JNICALL Java_wootbeer_gsrandroid_GsrNative_touchLabel(JNIEnv *env, jclass c, jint elem) { (void) c; return (*env)->NewStringUTF(env, gsr_touch_label(elem)); }
+JNIEXPORT jfloat JNICALL Java_wootbeer_gsrandroid_GsrNative_editGetSize(JNIEnv *env, jclass c) { (void) env; (void) c; return gsr_touch_edit_size(); }
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_editSetSize(JNIEnv *env, jclass c, jfloat s) { (void) env; (void) c; gsr_touch_edit_set_size(s); }
+JNIEXPORT jboolean JNICALL Java_wootbeer_gsrandroid_GsrNative_editGetShown(JNIEnv *env, jclass c) { (void) env; (void) c; return gsr_touch_edit_shown() ? JNI_TRUE : JNI_FALSE; }
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_editSetShown(JNIEnv *env, jclass c, jboolean on) { (void) env; (void) c; gsr_touch_edit_set_shown(on ? 1 : 0); }
+JNIEXPORT void JNICALL Java_wootbeer_gsrandroid_GsrNative_resetTouchLayout(JNIEnv *env, jclass c) { (void) env; (void) c; gsr_touch_reset_layout(); }

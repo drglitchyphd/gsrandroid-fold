@@ -882,9 +882,15 @@ final class GsrMenu {
 			}
 			void set(int i) {
 				GsrNative.setSetting(setting, values[i]);
+				// Floating D-pad: the right side of the screen is for tapping, so turn the tap gestures on with it.
+				if (setting == GsrNative.TOUCH_DPAD && values[i] == 2) {
+					GsrNative.setSetting(GsrNative.TAP_A, 1);
+					GsrNative.setSetting(GsrNative.TWO_FINGER_B, 1);
+				}
 				refresh();
-				// Some rows are only there for one view (Zoom for Fit screen): build the page again.
-				if (setting == GsrNative.VIEW_MODE) {
+				// Some rows are only there for one choice (Zoom for Fit screen, Turbo speed with the turbo buttons on, the
+				// tap gestures' rows follow the direction control): build the page again.
+				if (setting == GsrNative.VIEW_MODE || setting == GsrNative.TURBO || setting == GsrNative.TOUCH_DPAD) {
 					list.post(new Runnable() {
 						@Override public void run() { rebuild(); }
 					});
@@ -1158,7 +1164,18 @@ final class GsrMenu {
 			}
 		});
 		sub("Touch controls");
-		choice("Touch pad", GsrNative.TOUCH_DPAD, new String[] { "Joystick", "D-pad" });
+		choice("Direction control", GsrNative.TOUCH_DPAD, new String[] { "Joystick", "D-pad", "Floating D-pad" });
+		choice("Tap for A", GsrNative.TAP_A, OFF_ON);
+		choice("Two-finger tap for B", GsrNative.TWO_FINGER_B, OFF_ON);
+		choice("Show A button", GsrNative.SHOW_A, OFF_ON);
+		choice("Show B button", GsrNative.SHOW_B, OFF_ON);
+		choice("Turbo A and B buttons", GsrNative.TURBO, OFF_ON);
+		if (GsrNative.getSetting(GsrNative.TURBO) != 0) {
+			int[] rates = { 3, 5, 8, 10, 12, 15, 20 };
+			String[] rateLabels = new String[rates.length];
+			for (int i = 0; i < rates.length; i++) rateLabels[i] = rates[i] + " per second";
+			choice("Turbo speed", GsrNative.TURBO_RATE, rates, rateLabels, K_SLIDER);
+		}
 		choice("Touch controls size", GsrNative.TOUCH_SCALE, indexes(TOUCH_SIZE.length), TOUCH_SIZE, K_SLIDER);
 		if (GsrDisplay.portrait(activity)) {
 			// Compact: smaller and packed together, right under the picture or at the bottom of the screen, leaving
@@ -1166,10 +1183,36 @@ final class GsrMenu {
 			choice("Portrait controls", GsrNative.PORTRAIT_COMPACT,
 					new String[] { "Spread", "Compact, under the picture", "Compact, at the bottom" });
 		}
-		int[] ops = new int[8];
-		String[] opLabels = new String[8];
-		for (int i = 0; i < 8; i++) { ops[i] = 30 + i * 10; opLabels[i] = ops[i] + "%"; }
+		int[] ops = { 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
+		String[] opLabels = new String[ops.length];
+		for (int i = 0; i < ops.length; i++) opLabels[i] = ops[i] + "%";
 		choice("Touch controls opacity", GsrNative.TOUCH_OPACITY, ops, opLabels, K_SLIDER);
+
+		sub("Touch look");
+		choice("Button style", GsrNative.TOUCH_STYLE, new String[] { "Flat", "Outlined", "GBA SP" });
+		choice("Button colour", GsrNative.TOUCH_COLOR,
+				new String[] { "Wallpaper", "Grey", "White", "Dark", "Blue", "Red", "Green", "Purple" });
+		choice("Fade when idle", GsrNative.TOUCH_FADE,
+				new String[] { "Never", "After 3 s", "After 5 s", "After 10 s", "After 20 s" });
+
+		sub("Touch layout");
+		action("Edit touch layout", "", new Runnable() {
+			@Override public void run() {
+				close();
+				// After the menu has gone (its dialog gives the focus back first).
+				activity.getWindow().getDecorView().postDelayed(new Runnable() {
+					@Override public void run() {
+						if (activity instanceof GsrGameActivity) ((GsrGameActivity) activity).startTouchEditor();
+					}
+				}, 250);
+			}
+		});
+		action("Reset touch layout", "", new Runnable() {
+			@Override public void run() {
+				GsrNative.resetTouchLayout();
+				Toast.makeText(activity, "Touch layout reset for this screen", Toast.LENGTH_SHORT).show();
+			}
+		});
 	}
 
 	private void buildGame() {

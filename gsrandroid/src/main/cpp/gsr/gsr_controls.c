@@ -4,6 +4,8 @@
 #include "gsr_text.h"
 #include "descore.h"
 #include "touch/descore_touch.h"
+#include "gsr_touch.h"
+#include <time.h>
 
 #include <GLES3/gl3.h>
 #include <android/log.h>
@@ -30,6 +32,11 @@ static atomic_uint g_hat_dirs;
 static atomic_uint g_touch_mask;  /* touch buttons, action bits */
 static atomic_uint g_touch_dirs;  /* touch d-pad circle, action bits */
 static atomic_int g_ff_latch, g_ff_prev, g_menu_prev;
+static atomic_llong g_touch_down_at[GSR_ACT_COUNT];  /* when a touch button went down (for the minimum press) */
+static atomic_llong g_tap_until[GSR_ACT_COUNT];      /* timed presses: held until this time */
+static atomic_llong g_turbo_since[GSR_ACT_COUNT];    /* turbo held since (0 = not held) */
+static atomic_llong g_touch_ff_down;
+static atomic_int g_touch_ff_hold, g_touch_ff_latch;
 static char g_path[1024];
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static int g_w, g_h;
@@ -103,11 +110,14 @@ void gsr_controls_bind_reset(void) {
 
 /* ---- state -> engine -------------------------------------------------------------------------------- */
 
+static unsigned timed_actions(void);
+
 static unsigned held_actions(void) {
 	unsigned slots = atomic_load(&g_slot_held), m = 0;
 	for (int a = 0; a < GSR_ACT_COUNT; a++)
 		if (slots & (3u << (a * 2))) m |= 1u << a;
-	return m | atomic_load(&g_stick_dirs) | atomic_load(&g_hat_dirs) | atomic_load(&g_touch_mask) | atomic_load(&g_touch_dirs);
+	return m | atomic_load(&g_stick_dirs) | atomic_load(&g_hat_dirs) | atomic_load(&g_touch_mask) | atomic_load(&g_touch_dirs)
+		| timed_actions();
 }
 
 /* Fast forward as a toggle latches on the press edge, wherever the press came from. */
@@ -137,6 +147,9 @@ void gsr_controls_release_all(void) {
 	atomic_store(&g_touch_dirs, 0);
 	atomic_store(&g_ff_prev, 0);
 	atomic_store(&g_menu_prev, 0);
+	for (int a = 0; a < GSR_ACT_COUNT; a++) { atomic_store(&g_tap_until[a], 0); atomic_store(&g_turbo_since[a], 0); }
+	atomic_store(&g_touch_ff_hold, 0);
+	gsr_touch_release_all();
 }
 
 uint16_t gsr_controls_keyinput(void) {
@@ -147,6 +160,8 @@ uint16_t gsr_controls_keyinput(void) {
 }
 
 int gsr_controls_fast_forward(void) {
+	/* the touch FF button: a tap toggles, holding it fast-forwards while held (whatever the gamepad setting is) */
+	if (atomic_load(&g_touch_ff_hold) || atomic_load(&g_touch_ff_latch)) return 1;
 	if (gsr_settings_get(GSR_S_FF_MODE) == 1) return atomic_load(&g_ff_latch);
 	atomic_store(&g_ff_latch, 0);
 	return (held_actions() >> GSR_ACT_FF) & 1;
@@ -211,35 +226,75 @@ void gsr_controls_axis(int axis, float v) {
 	edges();
 }
 
-/* ---- touch overlay ---------------------------------------------------------------------------------- */
+/* ---- touch overlay ----------------------------------------------------------------------------------
+ * gsr_touch.c handles the fingers and draws the controls; this file says where each control goes by default and
+ * owns the resulting button state. */
 
 enum { TB_A, TB_B, TB_L, TB_R, TB_START, TB_SELECT, TB_FF, TB_MENU, TB_COUNT };
-static const unsigned char k_tb_action[TB_COUNT] = { GSR_ACT_A, GSR_ACT_B, GSR_ACT_L, GSR_ACT_R, GSR_ACT_START, GSR_ACT_SELECT, GSR_ACT_FF, GSR_ACT_MENU };
-static const char *k_tb_label[TB_COUNT] = { "A", "B", "L", "R", "START", "SELECT", "FF", "MENU" };
+static const int k_tb_elem[TB_COUNT] = { GT_A, GT_B, GT_L, GT_R, GT_START, GT_SELECT, GT_FF, GT_MENU };
 static float g_tb_rect[TB_COUNT][4];
+static float g_pad[3];  /* the direction pad: centre x, y and radius */
 
-static void touch_key(unsigned char act, int down) {
-	if (down) atomic_fetch_or(&g_touch_mask, 1u << act); else atomic_fetch_and(&g_touch_mask, ~(1u << act));
+#define MIN_PRESS_MS 80   /* the game reads input once a frame: a quick tap must last long enough to be seen */
+#define FF_TAP_MS 300     /* the touch FF button: a tap shorter than this toggles, a longer press holds */
+
+static long long ms_now(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (long long) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+
+/* Timed presses (taps, the rest of a too-short press) and turbo pulses, as action bits. */
+static unsigned timed_actions(void) {
+	long long now = ms_now();
+	unsigned m = 0;
+	int rate = gsr_settings_get(GSR_S_TURBO_RATE);
+	for (int a = 0; a < GSR_ACT_COUNT; a++) {
+		long long since;
+		if (atomic_load(&g_tap_until[a]) > now) m |= 1u << a;
+		since = atomic_load(&g_turbo_since[a]);
+		/* on for the first half of each 1/rate second, off for the second */
+		if (since && ((now - since) * rate * 2 / 1000) % 2 == 0) m |= 1u << a;
+	}
+	return m;
+}
+
+void gsr_controls_touch_set(int act, int down) {
+	if (act < 0 || act >= GSR_ACT_COUNT) return;
+	if (down) {
+		atomic_store(&g_touch_down_at[act], ms_now());
+		atomic_fetch_or(&g_touch_mask, 1u << act);
+	} else {
+		long long held = ms_now() - atomic_load(&g_touch_down_at[act]);
+		if (held < MIN_PRESS_MS) atomic_store(&g_tap_until[act], atomic_load(&g_touch_down_at[act]) + MIN_PRESS_MS);
+		atomic_fetch_and(&g_touch_mask, ~(1u << act));
+	}
 	edges();
 }
 
-static void touch_stick(int idx, float x, float y) {
-	unsigned d = 0;
-	(void) idx;
-	if (gsr_settings_get(GSR_S_TOUCH_DPAD)) {
-		unsigned p = descore_touch_dpad_dirs(x, y);
-		if (p & DESCORE_DPAD_LEFT) d |= 1u << GSR_ACT_LEFT;
-		if (p & DESCORE_DPAD_RIGHT) d |= 1u << GSR_ACT_RIGHT;
-		if (p & DESCORE_DPAD_UP) d |= 1u << GSR_ACT_UP;
-		if (p & DESCORE_DPAD_DOWN) d |= 1u << GSR_ACT_DOWN;
-		atomic_store(&g_touch_dirs, d);
-		return;
+void gsr_controls_touch_tap(int act) {
+	if (act < 0 || act >= GSR_ACT_COUNT) return;
+	atomic_store(&g_tap_until[act], ms_now() + MIN_PRESS_MS);
+}
+
+void gsr_controls_touch_dirs(unsigned action_bits) {
+	atomic_store(&g_touch_dirs, action_bits);
+}
+
+void gsr_controls_touch_turbo(int act, int down) {
+	if (act < 0 || act >= GSR_ACT_COUNT) return;
+	atomic_store(&g_turbo_since[act], down ? ms_now() : 0);
+}
+
+void gsr_controls_touch_ff(int down) {
+	if (down) {
+		atomic_store(&g_touch_ff_down, ms_now());
+		atomic_store(&g_touch_ff_hold, 1);
+	} else {
+		if (ms_now() - atomic_load(&g_touch_ff_down) < FF_TAP_MS) atomic_fetch_xor(&g_touch_ff_latch, 1);
+		atomic_store(&g_touch_ff_hold, 0);
 	}
-	if (x < -0.35f) d |= 1u << GSR_ACT_LEFT;
-	if (x > 0.35f) d |= 1u << GSR_ACT_RIGHT;
-	if (y < -0.35f) d |= 1u << GSR_ACT_UP;
-	if (y > 0.35f) d |= 1u << GSR_ACT_DOWN;
-	atomic_store(&g_touch_dirs, d);
 }
 
 /* Portrait: the same controls in the space below the picture, laid out like the handheld itself: L and R
@@ -263,8 +318,7 @@ static void portrait_layout(int w, int h, float cell, float m, float r, float sb
 		if (top < y0 + m) top = y0 + m;
 	}
 	float rx = w - m - sb * 2.4f, ry = mid - sb * 0.9f;
-	descore_touch_set_stick(0, m + r * 1.05f, mid, r, touch_stick);
-	descore_touch_set_stick_style(0, gsr_settings_get(GSR_S_TOUCH_DPAD) ? DESCORE_TOUCH_STICK_DPAD : DESCORE_TOUCH_STICK_ANALOG);
+	g_pad[0] = m + r * 1.05f; g_pad[1] = mid; g_pad[2] = r;
 	a[0] = rx + sb * 1.15f; a[1] = ry; a[2] = sb; a[3] = sb;
 	b[0] = rx; b[1] = ry + sb * 0.85f; b[2] = sb; b[3] = sb;
 	l[0] = m; l[1] = top; l[2] = cell * 1.8f; l[3] = cell * 0.95f;
@@ -301,8 +355,7 @@ void gsr_controls_layout(int w, int h) {
 	if (gsr_host_portrait_picture_h(w, h) > 0) {
 		portrait_layout(w, h, cell, m, r, sb);
 	} else {
-	descore_touch_set_stick(0, m + r * 1.05f, h - m - r * 1.05f, r, touch_stick);
-	descore_touch_set_stick_style(0, gsr_settings_get(GSR_S_TOUCH_DPAD) ? DESCORE_TOUCH_STICK_DPAD : DESCORE_TOUCH_STICK_ANALOG);
+	g_pad[0] = m + r * 1.05f; g_pad[1] = h - m - r * 1.05f; g_pad[2] = r;
 	{
 		float rx = w - m - sb * 2.4f, ry = h - m - sb * 1.9f;
 		float *a = g_tb_rect[TB_A], *b = g_tb_rect[TB_B], *l = g_tb_rect[TB_L], *rr = g_tb_rect[TB_R];
@@ -317,15 +370,20 @@ void gsr_controls_layout(int w, int h) {
 		mn[0] = w * 0.5f + cell * 0.1f; mn[1] = m; mn[2] = cell * 1.8f; mn[3] = cell * 0.8f;
 	}
 	}
-	for (int i = 0; i < TB_COUNT; i++) {
-		unsigned char key = k_tb_action[i];
-		descore_touch_set_button(i, g_tb_rect[i][0], g_tb_rect[i][1], g_tb_rect[i][2], g_tb_rect[i][3], &key, 1, false);
+	for (int i = 0; i < TB_COUNT; i++)
+		gsr_touch_set_default(k_tb_elem[i], g_tb_rect[i][0], g_tb_rect[i][1], g_tb_rect[i][2], g_tb_rect[i][3]);
+	gsr_touch_set_default(GT_DPAD, g_pad[0] - g_pad[2], g_pad[1] - g_pad[2], g_pad[2] * 2, g_pad[2] * 2);
+	/* Turbo A and B (when turned on): smaller round buttons just outside A and B */
+	{
+		const float *a = g_tb_rect[TB_A], *b = g_tb_rect[TB_B], t = sb * 0.7f;
+		gsr_touch_set_default(GT_TURBO_A, a[0] + (a[2] - t) * 0.5f, a[1] - t - m * 0.5f, t, t);
+		gsr_touch_set_default(GT_TURBO_B, b[0] - t - m * 0.5f, b[1] + (b[3] - t) * 0.5f, t, t);
 	}
+	gsr_touch_layout_done(w, h);
 }
 
 void gsr_controls_touch_settings_changed(void) {
 	descore_touch_set_scale_step(gsr_settings_get(GSR_S_TOUCH_SCALE));
-	descore_touch_set_opacity(gsr_settings_get(GSR_S_TOUCH_OPACITY) / 100.0f);
 	if (g_w > 0) gsr_controls_layout(g_w, g_h);
 }
 
@@ -333,103 +391,12 @@ void gsr_controls_init(const char *dir) {
 	snprintf(g_path, sizeof g_path, "%s/controls.ini", dir);
 	defaults();
 	load_binds();
-	descore_touch_init(TB_COUNT, touch_key, NULL);
+	/* descore's touch module still tracks the gamepad; gsr_touch.c takes over the fingers and the drawing. */
+	descore_touch_init(0, NULL, NULL);
+	descore_touch_set_override(gsr_touch_event, gsr_touch_draw);
 	descore_touch_set_scale_step(gsr_settings_get(GSR_S_TOUCH_SCALE));
-	descore_touch_set_opacity(gsr_settings_get(GSR_S_TOUCH_OPACITY) / 100.0f);
+	gsr_touch_init(dir);
 }
 
-/* ---- captions ---------------------------------------------------------------------------------------
- * Descore draws the buttons as flat translucent quads. The captions are rasterised once into a small
- * texture from the built-in 5x7 font and drawn as textured quads, so there is no per-frame text cost. */
-
-#define ATLAS_W 256
-#define ATLAS_H 64
-#define ATLAS_SCALE 3
-static GLuint g_atlas_tex, g_atlas_prog, g_atlas_vbo;
-static GLint g_atlas_u_screen, g_atlas_u_alpha;
-static struct { int x, y, w, h; } g_label_px[TB_COUNT];
-
-static void build_atlas(void) {
-	static uint8_t px[ATLAS_W * ATLAS_H];
-	int x = 0, y = 0;
-	memset(px, 0, sizeof px);
-	for (int i = 0; i < TB_COUNT; i++) {
-		int w = (int) strlen(k_tb_label[i]) * 6 * ATLAS_SCALE, h = 8 * ATLAS_SCALE;
-		if (x + w > ATLAS_W) { x = 0; y += h + 2; }
-		gsr_text_blit(k_tb_label[i], ATLAS_SCALE, px, ATLAS_W, x, y);
-		g_label_px[i].x = x; g_label_px[i].y = y; g_label_px[i].w = w - ATLAS_SCALE; g_label_px[i].h = 7 * ATLAS_SCALE;
-		x += w + 2;
-	}
-	glGenTextures(1, &g_atlas_tex);
-	glBindTexture(GL_TEXTURE_2D, g_atlas_tex);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, ATLAS_W, ATLAS_H, 0, GL_RED, GL_UNSIGNED_BYTE, px);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-}
-
-static void build_prog(void) {
-	static const char *vs = "#version 300 es\nlayout(location=0) in vec2 p; layout(location=1) in vec2 t; uniform vec2 screen; out vec2 uv;\n"
-		"void main(){ uv=t; gl_Position=vec4(p.x/screen.x*2.0-1.0, 1.0-p.y/screen.y*2.0, 0.0, 1.0); }\n";
-	static const char *fs = "#version 300 es\nprecision mediump float; in vec2 uv; uniform sampler2D tex; uniform float alpha; out vec4 o;\n"
-		"void main(){ o = vec4(1.0,1.0,1.0, texture(tex, uv).r * alpha); }\n";
-	GLuint v = glCreateShader(GL_VERTEX_SHADER), f = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(v, 1, &vs, NULL); glCompileShader(v);
-	glShaderSource(f, 1, &fs, NULL); glCompileShader(f);
-	g_atlas_prog = glCreateProgram();
-	glAttachShader(g_atlas_prog, v); glAttachShader(g_atlas_prog, f);
-	glLinkProgram(g_atlas_prog);
-	glDeleteShader(v); glDeleteShader(f);
-	g_atlas_u_screen = glGetUniformLocation(g_atlas_prog, "screen");
-	g_atlas_u_alpha = glGetUniformLocation(g_atlas_prog, "alpha");
-	glGenBuffers(1, &g_atlas_vbo);
-}
-
-void gsr_controls_draw_labels(int sw, int sh) {
-	float alpha;
-	if (descore_gamepad_connected() || g_w <= 0) return;
-	if (!g_atlas_prog || !glIsProgram(g_atlas_prog)) build_prog();
-	if (!g_atlas_tex || !glIsTexture(g_atlas_tex)) build_atlas();
-	alpha = gsr_settings_get(GSR_S_TOUCH_OPACITY) / 100.0f + 0.35f;
-	if (alpha > 1.0f) alpha = 1.0f;
-	glBindVertexArray(0);
-	glUseProgram(g_atlas_prog);
-	glUniform2f(g_atlas_u_screen, (float) sw, (float) sh);
-	glUniform1f(g_atlas_u_alpha, alpha);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, g_atlas_tex);
-	glDisable(GL_DEPTH_TEST); glDisable(GL_SCISSOR_TEST); glDisable(GL_CULL_FACE);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glBindBuffer(GL_ARRAY_BUFFER, g_atlas_vbo);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	for (int i = 0; i < TB_COUNT; i++) {
-		const float *r = g_tb_rect[i];
-		float lw = (float) g_label_px[i].w, lh = (float) g_label_px[i].h;
-		float k = r[3] * 0.38f / lh;                  /* caption height is ~38% of the button */
-		float maxk = r[2] * 0.75f / lw;
-		float dw, dh, x0, y0, u0, v0, u1, v1;
-		GLfloat v[16];
-		if (k > maxk) k = maxk;
-		dw = lw * k; dh = lh * k;
-		x0 = r[0] + (r[2] - dw) * 0.5f; y0 = r[1] + (r[3] - dh) * 0.5f;
-		u0 = g_label_px[i].x / (float) ATLAS_W; v0 = g_label_px[i].y / (float) ATLAS_H;
-		u1 = (g_label_px[i].x + g_label_px[i].w) / (float) ATLAS_W; v1 = (g_label_px[i].y + g_label_px[i].h) / (float) ATLAS_H;
-		v[0] = x0;      v[1] = y0;      v[2] = u0; v[3] = v0;
-		v[4] = x0 + dw; v[5] = y0;      v[6] = u1; v[7] = v0;
-		v[8] = x0;      v[9] = y0 + dh; v[10] = u0; v[11] = v1;
-		v[12] = x0 + dw; v[13] = y0 + dh; v[14] = u1; v[15] = v1;
-		glBufferData(GL_ARRAY_BUFFER, sizeof v, v, GL_STREAM_DRAW);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (const void *) 0);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, (const void *) 8);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	}
-	glDisableVertexAttribArray(0);
-	glDisableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glDisable(GL_BLEND);
-	glUseProgram(0);
-}
+/* The captions are drawn with the controls by gsr_touch.c (descore's touch draw at the buffer swap). */
+void gsr_controls_draw_labels(int sw, int sh) { (void) sw; (void) sh; }

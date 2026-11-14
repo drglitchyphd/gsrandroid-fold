@@ -26,10 +26,10 @@ static const Spec k_spec[GSR_S_COUNT] = {
 	[GSR_S_FF_MUTE]       = { "ff_mute", 0, 0, 1 },
 	[GSR_S_SHOW_FPS]      = { "show_fps", 0, 0, 1 },
 	[GSR_S_TOUCH_SCALE]   = { "touch_scale", 2, 0, 8 },
-	[GSR_S_TOUCH_OPACITY] = { "touch_opacity", 30, 30, 100 },
+	[GSR_S_TOUCH_OPACITY] = { "touch_opacity", 30, 5, 100 },
 	[GSR_S_RENDERER]      = { "renderer", 0, 0, 2 },
 	[GSR_S_AUTO_CPU]      = { "auto_cpu", 0, 0, 1 },
-	[GSR_S_TOUCH_DPAD]    = { "touch_dpad", 0, 0, 1 },
+	[GSR_S_TOUCH_DPAD]    = { "touch_dpad", 0, 0, 2 },
 	[GSR_S_SCREEN_FILTER] = { "screen_filter", 0, 0, 4 },
 	[GSR_S_CHEAT_HP]      = { "cheat_hp", 0, 0, 1 },
 	[GSR_S_CHEAT_PP]      = { "cheat_pp", 0, 0, 1 },
@@ -39,6 +39,15 @@ static const Spec k_spec[GSR_S_COUNT] = {
 	[GSR_S_PORTRAIT_COMPACT] = { "portrait_compact", 0, 0, 2 },
 	[GSR_S_VIEW_ZOOM]     = { "view_zoom", 5, 0, 10 },
 	[GSR_S_ROOM_CLIP]     = { "room_clip", 2, 0, 2 },
+	[GSR_S_TOUCH_STYLE]   = { "touch_style", 0, 0, 2 },
+	[GSR_S_TOUCH_COLOR]   = { "touch_color", 0, 0, 7 },
+	[GSR_S_TOUCH_FADE]    = { "touch_fade", 0, 0, 4 },
+	[GSR_S_TAP_A]         = { "tap_a", 0, 0, 1 },
+	[GSR_S_TWO_FINGER_B]  = { "two_finger_b", 0, 0, 1 },
+	[GSR_S_SHOW_A]        = { "show_a", 1, 0, 1 },
+	[GSR_S_SHOW_B]        = { "show_b", 1, 0, 1 },
+	[GSR_S_TURBO]         = { "turbo", 0, 0, 1 },
+	[GSR_S_TURBO_RATE]    = { "turbo_rate", 10, 3, 20 },
 };
 
 static atomic_int g_val[GSR_S_COUNT];

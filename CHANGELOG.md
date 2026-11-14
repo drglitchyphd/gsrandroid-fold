@@ -11,6 +11,17 @@
 - The Lost Age: Hide characters outside the room now works in every room, not only the two rooms upstream checked (Settings > Display; Off, Checked rooms or Every room)  
 - Material You look for the side menu and launcher, with colours from your wallpaper on Android 12 and later. The menu has two panes on big screens, slides up from the bottom on a portrait phone screen, and sits at the side in landscape  
 
+- Touch controls (Settings > Controls):
+  - Floating D-pad: appears wherever your thumb lands on the left half, with 8 directions and a dead zone (Direction control: Joystick, D-pad or Floating D-pad)
+  - Tap for A and two-finger tap for B, on empty screen. Both turn on when you pick Floating D-pad; a tap on the D-pad side without moving is A too
+  - Show A button and Show B button, each on its own switch
+  - Button styles: Flat, Outlined or GBA SP. Button colours: Wallpaper, Grey, White, Dark, Blue, Red, Green or Purple. Opacity down to 5%, and Fade when idle
+  - Turbo A and B buttons (3 to 20 presses a second)
+  - Fast-forward button: tap to toggle, hold to fast-forward while held
+  - Layout editor (Edit touch layout): drag controls to move them, set each one's size, hide or show it. Saved per screen and orientation
+  - Touch areas are 1.3x the drawn button, every press lasts at least 80 ms so quick taps register, and you can slide between A and B
+  - Touch buttons are no bigger than thumb size on the inner screen (they were 2-3x too big)  
+
 ### Fixed
 - Held buttons are let go when the app loses focus (notification shade, pop-ups), so they no longer stay pressed  
 - Folding or unfolding no longer risks restarting the game screen  

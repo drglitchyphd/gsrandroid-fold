@@ -28,6 +28,8 @@ public class GsrGameActivity extends DescoreGameActivity {
 	private final Handler handler = new Handler(Looper.getMainLooper());
 	/** "Paused, tap to resume" after folding or unfolding; null while not shown. */
 	private android.view.View pauseOverlay;
+	/** The touch layout editor while it is open. */
+	private GsrTouchEditor editor;
 	/** Paused because the window lost focus (the notification shade), resumed when it comes back. */
 	private boolean focusPaused;
 	private final boolean[] screenChanged = new boolean[2];
@@ -61,6 +63,25 @@ public class GsrGameActivity extends DescoreGameActivity {
 		GsrDisplay.apply(this);
 		GsrDisplay.publishTopInset(this);
 		applyProfile.run();
+		// The "Wallpaper" touch button colour: the Material You primary colour and the colour drawn on it.
+		try {
+			wootbeer.descore.DescoreTheme t = wootbeer.descore.DescoreTheme.get(this);
+			GsrNative.setTouchPalette(t.primary & 0xFFFFFF, t.onPrimary & 0xFFFFFF);
+		} catch (Throwable ignored) {
+			// native library not loaded yet
+		}
+	}
+
+	/** Settings > Controls > Edit touch layout (called by the menu after it has closed). */
+	void startTouchEditor() {
+		if (editor != null) return;
+		editor = new GsrTouchEditor(this, new Runnable() {
+			@Override public void run() {
+				editor = null;
+				if (pauseOverlay == null && !focusPaused) GsrNative.setUserPause(false);
+			}
+		});
+		editor.start();
 	}
 
 	@Override
@@ -147,7 +168,7 @@ public class GsrGameActivity extends DescoreGameActivity {
 			}
 		} else if (focusPaused) {
 			focusPaused = false;
-			if (pauseOverlay == null) GsrNative.setUserPause(false);
+			if (pauseOverlay == null && editor == null) GsrNative.setUserPause(false);
 		}
 	}
 
@@ -194,6 +215,11 @@ public class GsrGameActivity extends DescoreGameActivity {
 
 	@Override
 	public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+		if (editor != null && (e.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK
+				|| e.getKeyCode() == android.view.KeyEvent.KEYCODE_BUTTON_B)) {
+			if (e.getAction() == android.view.KeyEvent.ACTION_UP) editor.cancel();
+			return true;  // Back leaves the editor without saving (and does not open the menu)
+		}
 		if (pauseOverlay != null) {
 			int k = e.getKeyCode();
 			if (k == android.view.KeyEvent.KEYCODE_BUTTON_A || k == android.view.KeyEvent.KEYCODE_BUTTON_START

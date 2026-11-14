@@ -102,6 +102,7 @@ final class GsrProfile {
 		}
 		e.apply();
 		applied = key;
+		GsrNative.setTouchProfile(key);  // this screen's own touch layout
 		return true;
 	}
 

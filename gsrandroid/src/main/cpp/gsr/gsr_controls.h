@@ -36,6 +36,15 @@ void gsr_controls_touch_settings_changed(void);
 void gsr_controls_draw_labels(int surface_w, int surface_h);
 
 uint16_t gsr_controls_keyinput(void); /* active low, GBA layout */
+
+/* From the touch controls (gsr_touch.c). A button held with set(act, 1/0) is kept pressed for at least 80 ms;
+ * tap() presses for 80 ms; dirs() replaces the direction bits (1 << GSR_ACT_LEFT, ...); turbo() pulses the action
+ * at the Turbo speed while held; ff() is the FF button: a tap toggles fast forward, holding it holds. */
+void gsr_controls_touch_set(int act, int down);
+void gsr_controls_touch_tap(int act);
+void gsr_controls_touch_dirs(unsigned action_bits);
+void gsr_controls_touch_turbo(int act, int down);
+void gsr_controls_touch_ff(int down);
 int gsr_controls_fast_forward(void);
 
 /* Remapping. keycode 0 = unbound. Binding a key that another action already uses moves it. */
