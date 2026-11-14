@@ -281,10 +281,18 @@ void gsr_controls_layout(int w, int h) {
 	float scale = descore_touch_scale_value(gsr_settings_get(GSR_S_TOUCH_SCALE));
 	g_w = w; g_h = h;
 	descore_touch_set_screen_size(w, h);
-	cell = (w < h ? w : h) * 0.13f * scale;
+	/* A thirteenth of the screen's short side, but no bigger than 52 dp before the size setting: on a tablet-sized
+	 * screen (a foldable's inner screen) a fraction of the screen made thumb-sized buttons two to three times too
+	 * big. dp = descore_touch_min_cell_px() / 44 (the 44 dp floor). */
+	const float dp = descore_touch_min_cell_px() / 44.0f;
+	cell = (w < h ? w : h) * 0.13f;
+	if (cell > 52.0f * dp) cell = 52.0f * dp;
+	cell *= scale;
 	if (gsr_host_portrait_picture_h(w, h) > 0 && gsr_settings_get(GSR_S_PORTRAIT_COMPACT)) {
 		/* Compact portrait: smaller buttons (down to 36 dp instead of 44) */
-		cell = w * 0.105f * scale;
+		cell = w * 0.105f;
+		if (cell > 42.0f * dp) cell = 42.0f * dp;
+		cell *= scale;
 		if (cell < descore_touch_min_cell_px() * (36.0f / 44.0f)) cell = descore_touch_min_cell_px() * (36.0f / 44.0f);
 	} else if (cell < descore_touch_min_cell_px()) cell = descore_touch_min_cell_px();
 	m = cell * 0.35f;
